@@ -305,14 +305,14 @@ export function TeamsPublicView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Teams</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-200 mt-1">
+          <h1 className="text-xl font-semibold">Teams</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             {teams.length} {teams.length === 1 ? 'team' : 'teams'}
-            {invitations.length > 0 && ` · ${invitations.length} pending ${invitations.length === 1 ? 'invitation' : 'invitations'}`}
+            {invitations.length > 0 && ` · ${invitations.length} pending`}
           </p>
         </div>
         <Button onClick={() => setCreateTeamDialogOpen(true)} size="sm">
-          <Plus className="w-4 h-4 mr-2" />
+          <Plus className="w-3.5 h-3.5 mr-1.5" />
           Create Team
         </Button>
       </div>
@@ -320,186 +320,138 @@ export function TeamsPublicView() {
       {/* Pending Invitations */}
       {invitations.length > 0 && (
         <div>
-          <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Pending Invitations</h2>
-          <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Team</th>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Role</th>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="text-right px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {invitations.map((invitation) => (
-                    <tr
-                      key={invitation.id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
-                    >
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                            <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                          </div>
-                          <span className="font-medium text-gray-900 dark:text-gray-100">{invitation.team.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className="text-gray-500 dark:text-gray-400 line-clamp-1 max-w-[200px] block">
-                          {invitation.team.description || '-'}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {getRoleBadge(invitation.role)}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-300 dark:border-yellow-500/30">Pending</Badge>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="default"
-                            className="h-7 text-xs bg-green-600 hover:bg-green-700"
-                            onClick={(e) => handleAcceptInvitation(invitation.id, e)}
-                            disabled={processingInvitation === invitation.id}
-                          >
-                            {processingInvitation === invitation.id ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <>
-                                <Check className="w-3 h-3 mr-1" />
-                                Accept
-                              </>
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs border-red-300 dark:border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
-                            onClick={(e) => handleDeclineInvitation(invitation.id, e)}
-                            disabled={processingInvitation === invitation.id}
-                          >
-                            <X className="w-3 h-3 mr-1" />
-                            Decline
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Pending Invitations</h2>
+          <div className="space-y-2">
+            {invitations.map((invitation, index) => (
+              <div
+                key={invitation.id}
+                className="flex items-center gap-4 px-5 py-3.5 rounded-xl border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/30 dark:bg-amber-500/5 animate-fade-in-up"
+                style={{ animationDelay: `${index * 40}ms`, animationFillMode: 'both' }}
+              >
+                <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center shrink-0">
+                  <Users className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{invitation.team.name}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {getRoleBadge(invitation.role)}
+                    {invitation.team.description && (
+                      <span className="text-xs text-muted-foreground truncate max-w-[200px] hidden sm:inline">
+                        {invitation.team.description}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={(e) => handleAcceptInvitation(invitation.id, e)}
+                    disabled={processingInvitation === invitation.id}
+                  >
+                    {processingInvitation === invitation.id ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <>
+                        <Check className="w-3 h-3 mr-1" />
+                        Accept
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 text-xs text-muted-foreground hover:text-destructive"
+                    onClick={(e) => handleDeclineInvitation(invitation.id, e)}
+                    disabled={processingInvitation === invitation.id}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Teams Table */}
-      <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Team</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Members</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Role</th>
-                <th className="text-right px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {teams.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center">
-                    <Users className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">No teams yet</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-200">Create a team to start collaborating.</p>
-                  </td>
-                </tr>
-              ) : (
-                teams.map((team) => {
-                  const canAccessSettings = team.user_role && ['owner', 'admin', 'manager', 'hr', 'finance'].includes(team.user_role)
-
-                  return (
-                    <tr
-                      key={team.id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-800/30 cursor-pointer transition-colors"
-                      onClick={() => router.push(`/teams/${team.slug}`)}
-                    >
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                            <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900 dark:text-gray-100">{team.name}</div>
-                            <div className="text-xs text-gray-400 dark:text-gray-500">{team.slug}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className="text-gray-500 dark:text-gray-400 line-clamp-1 block max-w-[200px]">
-                          {team.description || '-'}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
-                          <UserIcon className="w-3.5 h-3.5" />
-                          <span>{team.member_count}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {team.user_role && getRoleBadge(team.user_role)}
-                      </td>
-                      <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48">
-                              <DropdownMenuItem
-                                onSelect={(e) => {
-                                  e.preventDefault()
-                                  handleViewMembers(team)
-                                }}
-                              >
-                                <UserIcon className="w-4 h-4 mr-2" />
-                                View Members
-                              </DropdownMenuItem>
-                              {canAccessSettings && (
-                                <DropdownMenuItem
-                                  onSelect={(e) => {
-                                    e.preventDefault()
-                                    router.push(`/team-settings?team=${team.id}`)
-                                  }}
-                                >
-                                  <Settings className="w-4 h-4 mr-2" />
-                                  Settings
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
+      {/* Teams List */}
+      {teams.length === 0 ? (
+        <div className="text-center py-16 animate-fade-in">
+          <div className="mx-auto w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-4">
+            <Users className="w-6 h-6 text-muted-foreground" />
+          </div>
+          <h3 className="text-base font-semibold mb-1">No teams yet</h3>
+          <p className="text-muted-foreground text-sm max-w-sm mx-auto">
+            Create a team to start collaborating.
+          </p>
         </div>
-      </div>
+      ) : (
+        <div className="space-y-2">
+          {teams.map((team, index) => {
+            const canAccessSettings = team.user_role && ['owner', 'admin', 'manager', 'hr', 'finance'].includes(team.user_role)
+
+            return (
+              <div
+                key={team.id}
+                className="group w-full flex items-center gap-4 px-5 py-4 rounded-xl border bg-card hover:bg-muted/50 cursor-pointer transition-colors animate-fade-in-up"
+                style={{ animationDelay: `${index * 40}ms`, animationFillMode: 'both' }}
+                onClick={() => router.push(`/teams/${team.slug}`)}
+              >
+                {/* Icon */}
+                <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center shrink-0">
+                  <Users className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+                </div>
+
+                {/* Name + meta pills */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm font-semibold truncate">{team.name}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {team.user_role && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400">
+                        {team.user_role.charAt(0).toUpperCase() + team.user_role.slice(1)}
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border border-border text-muted-foreground">
+                      <UserIcon className="w-3 h-3" />
+                      {team.member_count} {team.member_count === 1 ? 'member' : 'members'}
+                    </span>
+                    {team.description && (
+                      <span className="text-xs text-muted-foreground truncate max-w-[200px] hidden sm:inline">
+                        {team.description}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleViewMembers(team) }}>
+                        <UserIcon className="w-4 h-4 mr-2" />
+                        View Members
+                      </DropdownMenuItem>
+                      {canAccessSettings && (
+                        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); router.push(`/team-settings?team=${team.id}`) }}>
+                          <Settings className="w-4 h-4 mr-2" />
+                          Settings
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Create Team Dialog */}
       <CreateTeamDialog

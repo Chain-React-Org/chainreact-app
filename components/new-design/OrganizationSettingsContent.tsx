@@ -784,7 +784,7 @@ export function OrganizationSettingsContent({ slugParam, sectionParam: sectionPr
                       personal connections with the organization - shared connections can be used in workflows
                       but credentials remain private to the owner.
                     </p>
-                    <Button variant="link" className="px-0 h-auto mt-2" onClick={() => router.push('/apps')}>
+                    <Button variant="link" className="px-0 h-auto mt-2" onClick={() => router.push('/connections')}>
                       Manage all your connections →
                     </Button>
                   </div>

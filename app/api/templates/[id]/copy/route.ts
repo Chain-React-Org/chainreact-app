@@ -3,12 +3,13 @@ import { cookies } from "next/headers"
 import { type NextRequest, NextResponse } from "next/server"
 import { jsonResponse, errorResponse, successResponse } from '@/lib/utils/api-response'
 import { randomUUID } from "crypto"
+import { getTemplateById } from '@/lib/templates/predefinedTemplates'
 
 import { logger } from '@/lib/utils/logger'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    cookies()
+    await cookies()
     const supabase = await createSupabaseRouteHandlerClient()
     const serviceClient = await createSupabaseServiceClient()
     const {
@@ -31,23 +32,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .eq("is_public", true)
       .single()
 
-    if (templateError || !template) {
-      logger.error("Template fetch error:", templateError)
-      return errorResponse("Template not found" , 404)
-    }
-
-    // Log raw template data to debug
-    logger.info("Raw template data keys:", Object.keys(template))
-    logger.info("Nodes type:", typeof template.nodes)
-    logger.info("Is nodes parsed:", Array.isArray(template.nodes))
-
     // Extract nodes and connections from the appropriate fields
     // Handle potential string JSONB fields that need parsing
-    let nodes = []
-    let connections = []
+    let nodes: any[] = []
+    let connections: any[] = []
+    let templateName = ''
+    let templateDescription = ''
 
     // Parse JSONB fields if they come as strings
-    const parseField = (field) => {
+    const parseField = (field: any) => {
       if (typeof field === 'string') {
         try {
           return JSON.parse(field)
@@ -59,37 +52,42 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return field
     }
 
-    const templateNodes = parseField(template.nodes)
-    const templateConnections = parseField(template.connections)
-    const templateWorkflowJson = parseField(template.workflow_json)
+    if (template && !templateError) {
+      // Found in database
+      templateName = template.name || ''
+      templateDescription = template.description || ''
 
-    // First try direct fields (these are what we're actually storing)
-    if (templateNodes && Array.isArray(templateNodes) && templateNodes.length > 0) {
-      nodes = templateNodes
-      connections = templateConnections || []
-    }
-    // Fall back to workflow_json if direct fields are empty
-    else if (templateWorkflowJson && templateWorkflowJson.nodes && templateWorkflowJson.nodes.length > 0) {
-      nodes = templateWorkflowJson.nodes || []
-      connections = templateWorkflowJson.edges || templateWorkflowJson.connections || []
-    }
-    // Final fallback - try any available data
-    else {
-      nodes = templateNodes || templateWorkflowJson?.nodes || []
-      connections = templateConnections || templateWorkflowJson?.edges || templateWorkflowJson?.connections || []
-    }
+      const templateNodes = parseField(template.nodes)
+      const templateConnections = parseField(template.connections)
+      const templateWorkflowJson = parseField((template as any).workflow_json)
 
-    logger.info('Template structure:', {
-      rawNodesType: typeof template.nodes,
-      parsedNodesType: typeof templateNodes,
-      parsedNodesLength: templateNodes?.length || 0,
-      parsedConnectionsLength: templateConnections?.length || 0,
-      hasWorkflowJson: !!templateWorkflowJson,
-      workflowJsonNodesLength: templateWorkflowJson?.nodes?.length || 0
-    })
+      if (templateNodes && Array.isArray(templateNodes) && templateNodes.length > 0) {
+        nodes = templateNodes
+        connections = templateConnections || []
+      } else if (templateWorkflowJson && templateWorkflowJson.nodes && templateWorkflowJson.nodes.length > 0) {
+        nodes = templateWorkflowJson.nodes || []
+        connections = templateWorkflowJson.edges || templateWorkflowJson.connections || []
+      } else {
+        nodes = templateNodes || templateWorkflowJson?.nodes || []
+        connections = templateConnections || templateWorkflowJson?.edges || templateWorkflowJson?.connections || []
+      }
+    } else {
+      // Fallback: check predefined templates (not always synced to DB)
+      const predefined = getTemplateById(resolvedParams.id)
+      if (!predefined) {
+        logger.error("Template not found in DB or predefined:", resolvedParams.id)
+        return errorResponse("Template not found", 404)
+      }
+
+      logger.info("Using predefined template fallback:", predefined.id)
+      templateName = predefined.name
+      templateDescription = predefined.description
+      nodes = predefined.workflow_json.nodes || []
+      connections = predefined.workflow_json.edges || []
+    }
 
     logger.info('Copying template:', {
-      templateName: template.name,
+      templateName,
       nodeCount: nodes.length,
       connectionCount: connections.length,
       firstNode: nodes[0] ? {
@@ -108,9 +106,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         error: "Template has no nodes to copy",
         debug: {
           templateId: resolvedParams.id,
-          templateName: template.name,
-          hasNodes: !!template.nodes,
-          hasWorkflowJson: !!template.workflow_json
+          templateName,
         }
       }, { status: 400 })
     }
@@ -151,7 +147,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     // Find the next available name by checking for existing copies
-    const baseName = `${template.name} (Copy)`
+    const baseName = `${templateName} (Copy)`
     let finalName = baseName
     let copyNumber = 0
 
@@ -161,11 +157,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .from("workflows")
       .select("name")
       .eq("user_id", user.id)
-      .ilike("name", `${template.name}%`)
+      .ilike("name", `${templateName}%`)
 
     console.log('Checking for existing copies:', {
-      templateName: template.name,
-      baseName: baseName,
+      templateName,
+      baseName,
       existingCount: existingWorkflows?.length || 0,
       existingNames: existingWorkflows?.map(w => w.name) || []
     })
@@ -214,7 +210,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .insert({
         id: newWorkflowId,
         name: finalName,
-        description: template.description,
+        description: templateDescription,
         user_id: user.id,
         status: "draft",
         source_template_id: resolvedParams.id,

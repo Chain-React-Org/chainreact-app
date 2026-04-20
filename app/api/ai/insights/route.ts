@@ -22,6 +22,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    // Check for 7-day trial status
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("created_at")
+      .eq("id", user.id)
+      .single()
+
+    const { data: subscription } = await supabase
+      .from("subscriptions")
+      .select("plans(name)")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .single()
+
+    const planName = (subscription?.plans as any)?.name || "free"
+    const daysSinceCreation = profile?.created_at
+      ? (Date.now() - new Date(profile.created_at).getTime()) / (1000 * 60 * 60 * 24)
+      : 999
+
+    const isOnTrial = planName === "free" && daysSinceCreation <= 7
+    const trialDaysLeft = isOnTrial ? Math.max(0, Math.ceil(7 - daysSinceCreation)) : 0
+
     // Fetch data in parallel
     const [integrationsResult, workflowsResult, executionsResult] = await Promise.all([
       // Integration health
@@ -120,8 +142,19 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // Trial status insight
+    if (isOnTrial) {
+      insights.unshift({
+        type: "trial_active",
+        icon: "zap",
+        text: `You have ${trialDaysLeft} day${trialDaysLeft !== 1 ? "s" : ""} left on your free Pro trial — document Q&A, web search, and more included`,
+        priority: "info"
+      })
+    }
+
     return NextResponse.json({
       insights,
+      trial: isOnTrial ? { active: true, daysLeft: trialDaysLeft } : undefined,
       summary: {
         connectedIntegrations: connected.length,
         activeWorkflows: activeWorkflows.length,

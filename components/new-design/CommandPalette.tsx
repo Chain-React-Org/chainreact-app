@@ -142,7 +142,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const pages = [
     { name: "Workflows", href: "/workflows", icon: Home, keywords: ["home", "dashboard", "flows"] },
     { name: "Templates", href: "/templates", icon: Layers, keywords: ["library", "prebuilt"] },
-    { name: "Apps & Integrations", href: "/apps", icon: Layout, keywords: ["connections", "connect", "integrations", "apps"] },
+    { name: "Connections", href: "/connections", icon: Layout, keywords: ["connections", "connect", "integrations", "apps"] },
     { name: "Assistant", href: "/ai-assistant", icon: Sparkles, keywords: ["ai", "chat", "assistant", "help", "chainreact"] },
     { name: "Analytics", href: "/analytics", icon: BarChart3, keywords: ["stats", "metrics", "usage", "reports"] },
     { name: "Teams", href: "/teams", icon: Users, keywords: ["members", "team", "invite"] },
@@ -197,7 +197,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   <ShortcutBadge shortcut={{ key: "n", ctrl: true }} />
                 </Command.Item>
                 <Command.Item
-                  onSelect={() => handleSelect(() => router.push("/apps"))}
+                  onSelect={() => handleSelect(() => router.push("/connections"))}
                   className="flex items-center justify-between px-2 py-2 cursor-pointer rounded-sm hover:bg-accent"
                 >
                   <div className="flex items-center gap-2">
@@ -290,7 +290,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   return (
                     <Command.Item
                       key={integration.id}
-                      onSelect={() => handleSelect(() => router.push("/apps"))}
+                      onSelect={() => handleSelect(() => router.push("/connections"))}
                       className="flex items-center gap-2 px-2 py-2 cursor-pointer rounded-sm hover:bg-accent"
                     >
                       <div className="w-4 h-4 rounded flex items-center justify-center bg-white dark:bg-slate-900 border">
@@ -316,7 +316,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 {availableApps.map((provider) => (
                   <Command.Item
                     key={provider.id}
-                    onSelect={() => handleSelect(() => router.push("/apps"))}
+                    onSelect={() => handleSelect(() => router.push("/connections"))}
                     className="flex items-center gap-2 px-2 py-2 cursor-pointer rounded-sm hover:bg-accent"
                   >
                     <div className="w-4 h-4 rounded flex items-center justify-center bg-white dark:bg-slate-900 border">

@@ -32,6 +32,8 @@ import {
   Trash2,
   X,
   Search,
+  PanelLeftClose,
+  PanelLeft,
   Brain,
   Plus
 } from "lucide-react"
@@ -56,7 +58,8 @@ import {
   QuestionRenderer,
   IntegrationConnectionRenderer,
   IntegrationStatusRenderer,
-  AppsGridRenderer
+  AppsGridRenderer,
+  SourceCitationRenderer
 } from './data-renderers'
 
 // Import voice components
@@ -168,6 +171,7 @@ export default function AIAssistantContent() {
   // showAIAssistantModal removed — voice feature not yet available
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [sidebarSearch, setSidebarSearch] = useState("")
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [insights, setInsights] = useState<Array<{ type: string; icon: string; text: string; priority: "info" | "warning" | "success" }>>([])
   const [insightsLoaded, setInsightsLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -301,6 +305,7 @@ export default function AIAssistantContent() {
         setConversationId(convId)
         setMessages(data.messages || [])
         setActiveConversationTitle(data.title || "New Chat")
+        setSidebarOpen(false) // Close sidebar on mobile after selecting
       }
     } catch (error) {
       logger.error("Error loading conversation:", error)
@@ -1341,15 +1346,35 @@ For detailed pricing and features, check out our [Pricing page](/pricing).
 
   return (
     <div className="flex absolute inset-0 -mb-16">
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Chat History Sidebar */}
-      <div className="w-72 border-r border-border/50 bg-muted/20 dark:bg-muted/10 flex flex-col shrink-0">
+      <div className={cn(
+        "w-72 border-r border-border/50 bg-muted/20 dark:bg-muted/10 flex flex-col shrink-0 transition-transform duration-200 z-50",
+        "fixed inset-y-0 left-0 lg:relative lg:translate-x-0",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      )}>
         {/* Sidebar Header */}
         <div className="p-4 border-b border-border/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-sm">
-              <Sparkles className="w-4 h-4 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-sm">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <h3 className="font-semibold text-sm tracking-tight">Assistant</h3>
             </div>
-            <h3 className="font-semibold text-sm tracking-tight">Assistant</h3>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden p-1.5 rounded-lg hover:bg-muted transition-colors"
+            >
+              <PanelLeftClose className="w-4 h-4 text-muted-foreground" />
+            </button>
           </div>
         </div>
 
@@ -1492,6 +1517,25 @@ For detailed pricing and features, check out our [Pricing page](/pricing).
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
+        {/* Mobile header with sidebar toggle */}
+        <div className="flex items-center gap-3 px-4 py-2 border-b border-border/50 lg:hidden flex-shrink-0">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+          >
+            <PanelLeft className="w-5 h-5 text-muted-foreground" />
+          </button>
+          <span className="text-sm font-medium truncate">{activeConversationTitle}</span>
+          <Button
+            onClick={startNewChat}
+            variant="ghost"
+            size="sm"
+            className="ml-auto p-1.5 h-auto"
+          >
+            <Plus className="w-4 h-4" />
+          </Button>
+        </div>
+
         {/* Empty State / Suggestions - Show when no messages */}
         {messages.length === 0 && (
           <div className="flex-1 overflow-y-auto">
@@ -1688,6 +1732,12 @@ For detailed pricing and features, check out our [Pricing page](/pricing).
                               error={typeof data === 'string' ? data : message.content}
                               type="warning"
                             />
+                          )
+
+                        case "web_search":
+                        case "document_qa":
+                          return message.metadata.sources && message.metadata.sources.length > 0 && (
+                            <SourceCitationRenderer sources={message.metadata.sources} />
                           )
 
                         case "info":

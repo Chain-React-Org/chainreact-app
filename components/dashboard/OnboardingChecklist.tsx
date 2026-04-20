@@ -66,7 +66,7 @@ export function OnboardingChecklist() {
       title: "Connect your first app",
       description: "Link an app like Gmail, Slack, or Notion to start automating",
       icon: Plug,
-      action: () => router.push("/apps"),
+      action: () => router.push("/connections"),
       actionLabel: "Connect App",
       isComplete: hasConnectedApp,
     },

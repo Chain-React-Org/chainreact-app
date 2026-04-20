@@ -130,7 +130,7 @@ export function ReAuthNotification({ className }: ReAuthNotificationProps) {
   }
 
   const handleGoToIntegrations = () => {
-    window.location.href = '/apps'
+    window.location.href = '/connections'
   }
 
   if (!isVisible) return null

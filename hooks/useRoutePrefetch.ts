@@ -43,15 +43,15 @@ export function useSmartPrefetch(currentPath: string) {
 
     // Define likely next pages based on current location
     const prefetchMap: Record<string, string[]> = {
-      "/workflows": ["/workflows/ai-agent", "/workflows/builder", "/templates", "/apps"],
-      "/templates": ["/workflows", "/apps", "/workflows/ai-agent"],
-      "/apps": ["/workflows", "/templates"],
+      "/workflows": ["/workflows/ai-agent", "/workflows/builder", "/templates", "/connections"],
+      "/templates": ["/workflows", "/connections", "/workflows/ai-agent"],
+      "/connections": ["/workflows", "/templates"],
       "/ai-assistant": ["/workflows", "/workflows/ai-agent"],
       "/analytics": ["/workflows"],
       "/teams": ["/organization", "/settings"],
       "/organization": ["/teams"],
-      "/settings": ["/workflows", "/apps"],
-      "/": ["/workflows", "/templates", "/apps"], // Home page
+      "/settings": ["/workflows", "/connections"],
+      "/": ["/workflows", "/templates", "/connections"], // Home page
     }
 
     // Get routes to prefetch for current path

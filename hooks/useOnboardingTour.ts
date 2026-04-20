@@ -80,7 +80,7 @@ export const mainTourSteps: TourStep[] = [
     description: 'Connect your favorite apps to start automating. We support 20+ integrations including Gmail, Slack, Discord, and more.',
     target: '[data-tour="apps"]',
     placement: 'right',
-    page: '/apps',
+    page: '/connections',
     action: 'none',
   },
   {

@@ -3,6 +3,7 @@ import {
   Zap,
   Layers,
   LayoutGrid,
+  Plug,
   Sparkles,
   BarChart3,
   Users,
@@ -55,11 +56,11 @@ export function getNavSections(isAdmin: boolean): NavSection[] {
     },
     {
       id: "apps",
-      label: "Apps",
-      icon: LayoutGrid,
-      href: "/apps",
+      label: "Connections",
+      icon: Plug,
+      href: "/connections",
       children: [
-        { id: "apps", label: "Apps & Integrations", href: "/apps", icon: LayoutGrid },
+        { id: "connections", label: "Connections", href: "/connections", icon: Plug },
       ],
     },
     {

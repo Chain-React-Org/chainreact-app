@@ -15,7 +15,7 @@ import { useWorkflowCreation } from '@/hooks/useWorkflowCreation'
 import { useCreateAndOpenWorkflow } from '@/hooks/useCreateAndOpenWorkflow'
 import { WorkspaceSelectionModal } from '@/components/workflows/WorkspaceSelectionModal'
 import { ConnectedNodesDisplay } from '@/components/workflows/ConnectedNodesDisplay'
-import { WorkflowStatusBadge, validateWorkflow } from '@/components/workflows/WorkflowStatusBadge'
+import { validateWorkflow } from '@/components/workflows/WorkflowStatusBadge'
 import { useKeyboardShortcuts, getWorkflowShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useKeyboardShortcutsHelp } from '@/components/common/KeyboardShortcutsHelp'
 import { WorkflowFloatingActionBar } from '@/components/common/FloatingActionBar'
@@ -95,6 +95,8 @@ import { logger } from '@/lib/utils/logger'
 import { fetchWithTimeout, retryWithBackoff } from '@/lib/utils/fetch-with-timeout'
 import { PagePreloader } from '@/components/common/PagePreloader'
 import { ListPageSkeleton } from '@/components/common/PageSkeleton'
+import { DashboardStats } from '@/components/dashboard/DashboardStats'
+import { RecentActivityFeed } from '@/components/dashboard/RecentActivityFeed'
 import type { Workflow as WorkflowRecord, WorkflowNode } from '@/stores/workflowStore'
 
 type ViewTab = 'workflows' | 'folders'
@@ -222,6 +224,7 @@ export function WorkflowsContentInner() {
   })
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const [executionStats, setExecutionStats] = useState<Record<string, { total: number; today: number; success: number; failed: number }>>({})
+  const [recentExecutions, setRecentExecutions] = useState<Array<{ id: string; workflowId: string; workflowName: string; status: string; startedAt: string; completedAt: string | null; durationMs: number | null }>>([])
   // Create workflow - now opens builder directly with AI panel visible
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false)
   const [requiredPlan, setRequiredPlan] = useState<string | undefined>()
@@ -320,6 +323,7 @@ export function WorkflowsContentInner() {
         // Only fetch stats if cache is stale
         if (now - statsLastFetchRef.current > CACHE_DURATION) {
           promises.push(fetchExecutionStats())
+          promises.push(fetchRecentExecutions())
         } else {
           logger.info('[WorkflowsPageContent] Using cached execution stats')
         }
@@ -382,6 +386,20 @@ export function WorkflowsContentInner() {
       // Downgrade to debug level since this is non-critical and may happen during prefetch
       logger.info('Failed to fetch execution stats (non-critical):', error)
       // Don't throw - allow page to load without stats
+    }
+  }
+
+  const fetchRecentExecutions = async () => {
+    try {
+      const response = await fetchWithTimeout('/api/analytics/dashboard?days=7', {}, 8000)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.recentExecutions) {
+          setRecentExecutions(data.recentExecutions)
+        }
+      }
+    } catch (error: any) {
+      logger.info('Failed to fetch recent executions (non-critical):', error)
     }
   }
 
@@ -565,10 +583,12 @@ export function WorkflowsContentInner() {
   const stats = useMemo(() => {
     const totalExecs = Object.values(executionStats).reduce((sum, stat) => sum + stat.total, 0)
     const successExecs = Object.values(executionStats).reduce((sum, stat) => sum + stat.success, 0)
+    const todayExecs = Object.values(executionStats).reduce((sum, stat) => sum + stat.today, 0)
     return {
       total: activeWorkflows.length,
       active: activeWorkflows.filter(w => w.status === 'active').length,
       totalExecutions: totalExecs,
+      todayExecutions: todayExecs,
       successRate: totalExecs > 0 ? Math.round((successExecs / totalExecs) * 100) : 0
     }
   }, [activeWorkflows, executionStats])
@@ -1361,6 +1381,17 @@ export function WorkflowsContentInner() {
   return (
     <>
       <div className="h-full flex flex-col">
+          {/* Stats + Activity */}
+          <div className="px-6 pt-5 pb-3 space-y-4 border-b border-slate-200 dark:border-slate-700">
+            <DashboardStats
+              active={stats.active}
+              total={stats.total}
+              todayExecutions={stats.todayExecutions}
+              successRate={stats.successRate}
+            />
+            <RecentActivityFeed executions={recentExecutions} maxItems={4} />
+          </div>
+
           {/* Command Bar */}
           <div className="h-14 border-b border-slate-200 dark:border-slate-700 flex items-center px-6 animate-fade-in-up">
             <div className="flex items-center gap-3 w-full">
@@ -1858,28 +1889,6 @@ export function WorkflowsContentInner() {
                         </td>
                         <td className="px-3 py-4">
                           <div className="flex items-center gap-2">
-                            <span className={cn(
-                              "relative flex h-2.5 w-2.5 shrink-0",
-                              workflow.status === 'active' && "text-green-500",
-                              workflow.status === 'inactive' && "text-yellow-500",
-                              (!workflow.status || workflow.status === 'draft') && "text-slate-400"
-                            )}>
-                              <span className={cn(
-                                "absolute inline-flex h-full w-full rounded-full opacity-75",
-                                workflow.status === 'active' && "animate-ping bg-green-400"
-                              )} />
-                              <span className={cn(
-                                "relative inline-flex rounded-full h-2.5 w-2.5",
-                                workflow.status === 'active' && "bg-green-500",
-                                workflow.status === 'inactive' && "bg-yellow-500",
-                                (!workflow.status || workflow.status === 'draft') && "bg-slate-300 dark:bg-slate-600"
-                              )} />
-                            </span>
-                            <WorkflowStatusBadge
-                              status={workflow.status || 'draft'}
-                              validation={getValidation(workflow.id)}
-                              size="sm"
-                            />
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1899,6 +1908,27 @@ export function WorkflowsContentInner() {
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
+                            {(() => {
+                              const validation = getValidation(workflow.id)
+                              if (validation && !validation.isValid && workflow.status !== 'active') {
+                                return (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="max-w-xs">
+                                        <p className="text-xs font-medium mb-1">Incomplete</p>
+                                        {validation.issues?.slice(0, 3).map((issue: string, i: number) => (
+                                          <p key={i} className="text-xs text-muted-foreground">• {issue}</p>
+                                        ))}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )
+                              }
+                              return null
+                            })()}
                           </div>
                         </td>
                         <td className="px-3 py-4">
@@ -2248,93 +2278,6 @@ export function WorkflowsContentInner() {
                             )}
                           </div>
 
-                          {/* Workflow Preview */}
-                          <div className="flex items-center justify-center mb-4 px-2">
-                            <div className="w-full h-20 bg-slate-50 rounded-lg border border-slate-200 overflow-hidden relative">
-                              {(() => {
-                                // Parse workflow nodes
-                                let nodes: WorkflowNode[] = []
-                                try {
-                                  const wf = workflow as any
-                                  const workflowData = typeof wf.workflow_json === 'string'
-                                    ? JSON.parse(wf.workflow_json)
-                                    : wf.workflow_json
-                                  nodes = workflowData?.nodes || workflow.nodes || []
-                                } catch (e) {
-                                  nodes = workflow.nodes || []
-                                }
-
-                                if (nodes.length === 0) {
-                                  return (
-                                    <div className="flex items-center justify-center h-full text-slate-400 text-xs">
-                                      Empty workflow
-                                    </div>
-                                  )
-                                }
-
-                                // Helper to get node properties from either Flow format or ReactFlow format
-                                // Flow format: node.metadata?.providerId, node.type, node.label
-                                // ReactFlow format: node.data?.providerId, node.data?.type, node.data?.title
-                                const getNodeProviderId = (n: any) => n.data?.providerId || (n.metadata as any)?.providerId || (n.type?.includes('_') ? n.type.split('_')[0] : null)
-                                const getNodeIsTrigger = (n: any) => n.data?.isTrigger ?? (n.metadata as any)?.isTrigger ?? n.type?.includes('_trigger_')
-                                const getNodeTitle = (n: any) => n.data?.title || n.label || n.data?.type || n.type || 'Node'
-                                const getNodeType = (n: any) => n.data?.type || n.type || ''
-
-                                // Get trigger and action nodes
-                                const triggerNodes = nodes.filter(n => getNodeIsTrigger(n))
-                                const actionNodes = nodes.filter(n => !getNodeIsTrigger(n) && (n.type === 'custom' || getNodeType(n)))
-                                const displayNodes = [...triggerNodes.slice(0, 1), ...actionNodes.slice(0, 3)]
-
-                                return (
-                                  <div className="flex items-center justify-center gap-1.5 h-full px-2">
-                                    {displayNodes.map((node, idx) => {
-                                      const providerId = getNodeProviderId(node)
-                                      const isTrigger = getNodeIsTrigger(node)
-                                      const title = getNodeTitle(node)
-                                      const nodeType = getNodeType(node)
-
-                                      return (
-                                        <React.Fragment key={node.id}>
-                                          {/* Node representation */}
-                                          <div
-                                            className={cn(
-                                              "w-10 h-10 rounded-md flex items-center justify-center p-1.5 flex-shrink-0",
-                                              isTrigger
-                                                ? "bg-green-100 border border-green-300"
-                                                : "bg-orange-100 border border-orange-300"
-                                            )}
-                                            title={title}
-                                          >
-                                            {providerId ? (
-                                              <Image
-                                                src={`/integrations/${providerId}.svg`}
-                                                alt={title}
-                                                width={28}
-                                                height={28}
-                                                className="w-full h-full object-contain"
-                                              />
-                                            ) : (
-                                              <span className="text-xs font-medium text-slate-600">
-                                                {nodeType?.slice(0, 2).toUpperCase() || '?'}
-                                              </span>
-                                            )}
-                                          </div>
-                                          {/* Connection arrow */}
-                                          {idx < displayNodes.length - 1 && (
-                                            <div className="text-slate-400">→</div>
-                                          )}
-                                        </React.Fragment>
-                                      )
-                                    })}
-                                    {nodes.length > 4 && (
-                                      <div className="text-xs text-slate-400 ml-1">+{nodes.length - 4}</div>
-                                    )}
-                                  </div>
-                                )
-                              })()}
-                            </div>
-                          </div>
-
                           {/* Folder */}
                           <div
                             onClick={(e) => {
@@ -2367,31 +2310,29 @@ export function WorkflowsContentInner() {
                               </Tooltip>
                             </TooltipProvider>
 
-                            {/* Status Badge + Toggle */}
+                            {/* Status Toggle */}
                             <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                              <span className={cn(
-                                "relative flex h-2 w-2 shrink-0",
-                                workflow.status === 'active' && "text-green-500",
-                                workflow.status === 'inactive' && "text-yellow-500",
-                                (!workflow.status || workflow.status === 'draft') && "text-slate-400"
-                              )}>
-                                <span className={cn(
-                                  "absolute inline-flex h-full w-full rounded-full opacity-75",
-                                  workflow.status === 'active' && "animate-ping bg-green-400"
-                                )} />
-                                <span className={cn(
-                                  "relative inline-flex rounded-full h-2 w-2",
-                                  workflow.status === 'active' && "bg-green-500",
-                                  workflow.status === 'inactive' && "bg-yellow-500",
-                                  (!workflow.status || workflow.status === 'draft') && "bg-slate-300 dark:bg-slate-600"
-                                )} />
-                              </span>
-                              <WorkflowStatusBadge
-                                status={workflow.status || 'draft'}
-                                validation={getValidation(workflow.id)}
-                                size="sm"
-                                showLabel={false}
-                              />
+                              {(() => {
+                                const validation = getValidation(workflow.id)
+                                if (validation && !validation.isValid && workflow.status !== 'active') {
+                                  return (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger>
+                                          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" className="max-w-xs">
+                                          <p className="text-xs font-medium mb-1">Incomplete</p>
+                                          {validation.issues?.slice(0, 3).map((issue: string, i: number) => (
+                                            <p key={i} className="text-xs text-muted-foreground">• {issue}</p>
+                                          ))}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )
+                                }
+                                return null
+                              })()}
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -2803,7 +2744,7 @@ export function WorkflowsContentInner() {
 
             {activeTab === 'workflows' && filteredAndSortedWorkflows.length === 0 && (
               <div className="flex items-center justify-center py-16 px-6 animate-fade-in">
-                <div className="text-center max-w-md mx-auto border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-10">
+                <div className="text-center max-w-md mx-auto p-10">
                   <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-5">
                     <Workflow className="w-8 h-8 text-slate-400 dark:text-slate-500" />
                   </div>

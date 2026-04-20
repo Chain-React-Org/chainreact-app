@@ -492,7 +492,7 @@ export const predefinedTemplates: PredefinedTemplate[] = [
     description: "Automatically respond to support requests in Discord, create tickets, and escalate to team members",
     category: "Customer Service",
     tags: ["discord", "support", "automation", "tickets"],
-    integrations: ["discord"],
+    integrations: ["discord", "notion"],
     difficulty: "intermediate",
     estimatedTime: "10 mins",
     workflow_json: {
@@ -938,216 +938,6 @@ export const predefinedTemplates: PredefinedTemplate[] = [
     }
   },
 
-  // ============== SOCIAL MEDIA TEMPLATES ==============
-
-  // Cross-Platform Content Publishing
-  {
-    id: "cross-platform-publishing",
-    name: "Cross-Platform Content Publisher",
-    description: "Publish content across multiple social media platforms simultaneously",
-    category: "Social Media",
-    tags: ["social", "publishing", "content", "multi-platform"],
-    integrations: ["twitter", "facebook", "linkedin", "instagram"],
-    difficulty: "beginner",
-    estimatedTime: "8 mins",
-    workflow_json: {
-      nodes: [
-        {
-          id: "trigger-1",
-          type: "schedule_trigger",
-          position: { x: 100, y: 100 },
-          data: {
-            name: "Daily Post Schedule",
-            config: {
-              cron: "0 9 * * *" // 9 AM daily
-            }
-          }
-        },
-        {
-          id: "action-1",
-          type: "google_sheets_action_get_row",
-          position: { x: 300, y: 100 },
-          data: {
-            name: "Get Today's Content",
-            config: {
-              spreadsheet: "{{CONTENT_CALENDAR_ID}}",
-              sheet: "Posts",
-              row: "{{TODAY_ROW}}"
-            }
-          }
-        },
-        {
-          id: "action-2",
-          type: "twitter_action_post_tweet",
-          position: { x: 500, y: 50 },
-          data: {
-            name: "Post to Twitter",
-            config: {
-              text: "{{action-1.content}}"
-            }
-          }
-        },
-        {
-          id: "action-3",
-          type: "facebook_action_create_post",
-          position: { x: 500, y: 150 },
-          data: {
-            name: "Post to Facebook",
-            config: {
-              message: "{{action-1.content}}",
-              page: "{{FACEBOOK_PAGE_ID}}"
-            }
-          }
-        },
-        {
-          id: "action-4",
-          type: "linkedin_action_share_update",
-          position: { x: 500, y: 250 },
-          data: {
-            name: "Post to LinkedIn",
-            config: {
-              text: "{{action-1.content}}"
-            }
-          }
-        }
-      ],
-      edges: [
-        { id: "e1", source: "trigger-1", target: "action-1" },
-        { id: "e2", source: "action-1", target: "action-2" },
-        { id: "e3", source: "action-1", target: "action-3" },
-        { id: "e4", source: "action-1", target: "action-4" }
-      ]
-    },
-    integrationSetups: [
-      {
-        type: "google_sheets",
-        spreadsheetName: "Social Media Content Calendar",
-        instructions: [
-          "Download the sample CSV file and import it into a new Google Sheet named Social Media Content Calendar.",
-          "Ensure the sheet is titled Posts and the header row remains unchanged so the workflow can map fields correctly.",
-          "Share the sheet with the Google account connected to ChainReact (if required) and paste the sheet ID in the Google Sheets node configuration."
-        ],
-        sampleSheets: [
-          {
-            sheetName: "Posts",
-            description: "Required columns with example social content that the workflow will publish",
-            downloadUrl: "/setup-resources/google-sheets/cross-platform-content.csv"
-          }
-        ],
-        resources: [
-          {
-            name: "Import CSV instructions",
-            description: "Google Sheets guide on importing CSV files",
-            url: "https://support.google.com/docs/answer/40608",
-            type: "documentation"
-          }
-        ]
-      }
-    ]
-  },
-
-  // Social Media Engagement Monitor
-  {
-    id: "social-engagement-monitor",
-    name: "Social Media Engagement Tracker",
-    description: "Track mentions and engagement across social platforms and notify team",
-    category: "Social Media",
-    tags: ["monitoring", "engagement", "analytics", "mentions"],
-    integrations: ["twitter", "slack"],
-    difficulty: "intermediate",
-    estimatedTime: "12 mins",
-    workflow_json: {
-      nodes: [
-        {
-          id: "trigger-1",
-          type: "twitter_trigger_new_mention",
-          position: { x: 100, y: 160 },
-          data: {
-            type: "twitter_trigger_new_mention",
-            title: "Brand Mention",
-            config: {},
-            isTrigger: true,
-            needsConfiguration: true
-          }
-        },
-        {
-          id: "ai-router-sentiment",
-          type: "ai_router",
-          position: { x: 320, y: 180 },
-          data: {
-            type: "ai_router",
-            title: "Classify Sentiment",
-            config: {
-              template: "custom",
-              systemPrompt: "Classify the tweet sentiment into negative, positive, or neutral. Return JSON with category and reasoning.",
-              model: "gpt-4o-mini",
-              apiSource: "chainreact",
-              memory: "workflow",
-              outputPaths: [
-                { id: "negative", name: "Negative", description: "Escalate to team", color: "#ef4444", condition: { type: "ai_decision", minConfidence: 0.55 } },
-                { id: "positive", name: "Positive", description: "Share wins", color: "#22c55e", condition: { type: "ai_decision", minConfidence: 0.55 } },
-                { id: "neutral", name: "Neutral", description: "Monitor", color: "#6b7280", condition: { type: "fallback" } }
-              ],
-              decisionMode: "single",
-              includeReasoning: true,
-              temperature: 0.2,
-              costLimit: 0.2
-            },
-            needsConfiguration: false
-          }
-        },
-        {
-          id: "slack-negative-alert",
-          type: "slack_action_send_message",
-          position: { x: 560, y: 60 },
-          data: {
-            type: "slack_action_send_message",
-            title: "Alert Team",
-            config: {
-              channel: "#social-alerts",
-              message: "⚠️ Negative mention detected by @{{trigger.username}}: {{trigger.text}}"
-            },
-            needsConfiguration: true
-          }
-        },
-        {
-          id: "slack-positive-highlight",
-          type: "slack_action_send_message",
-          position: { x: 560, y: 200 },
-          data: {
-            type: "slack_action_send_message",
-            title: "Share Positive Mention",
-            config: {
-              channel: "#social-highlights",
-              message: "🎉 Positive shout-out from @{{trigger.username}}: {{trigger.text}}"
-            },
-            needsConfiguration: true
-          }
-        },
-        {
-          id: "slack-neutral-log",
-          type: "slack_action_send_message",
-          position: { x: 560, y: 340 },
-          data: {
-            type: "slack_action_send_message",
-            title: "Log Neutral Mention",
-            config: {
-              channel: "#social-monitoring",
-              message: "ℹ️ Mention to monitor: {{trigger.text}}"
-            },
-            needsConfiguration: true
-          }
-        }
-      ],
-      edges: [
-        { id: "e1", source: "trigger-1", target: "ai-router-sentiment" },
-        { id: "e2", source: "ai-router-sentiment", target: "slack-negative-alert", sourceHandle: "negative" },
-        { id: "e3", source: "ai-router-sentiment", target: "slack-positive-highlight", sourceHandle: "positive" },
-        { id: "e4", source: "ai-router-sentiment", target: "slack-neutral-log", sourceHandle: "neutral" }
-      ]
-    }
-  },
-
   // ============== PRODUCTIVITY TEMPLATES ==============
 
   // Task Management Automation
@@ -1424,150 +1214,6 @@ export const predefinedTemplates: PredefinedTemplate[] = [
     }
   },
 
-  // ============== E-COMMERCE TEMPLATES ==============
-
-  // Order Processing Automation
-  {
-    id: "order-processing",
-    name: "E-commerce Order Processor",
-    description: "Automatically process new orders, update inventory, and notify customers",
-    category: "E-commerce",
-    tags: ["orders", "shopify", "inventory", "notifications"],
-    integrations: ["shopify", "gmail", "slack"],
-    difficulty: "intermediate",
-    estimatedTime: "12 mins",
-    workflow_json: {
-      nodes: [
-        {
-          id: "trigger-1",
-          type: "shopify_trigger_new_order",
-          position: { x: 100, y: 100 },
-          data: {
-            name: "New Order",
-            config: {}
-          }
-        },
-        {
-          id: "action-1",
-          type: "gmail_action_send_email",
-          position: { x: 300, y: 50 },
-          data: {
-            name: "Order Confirmation",
-            config: {
-              to: "{{trigger.customer.email}}",
-              subject: "Order #{{trigger.order_number}} Confirmed",
-              body: "Thank you for your order! We'll ship it within 24 hours."
-            }
-          }
-        },
-        {
-          id: "action-2",
-          type: "slack_action_send_message",
-          position: { x: 300, y: 150 },
-          data: {
-            name: "Notify Fulfillment",
-            config: {
-              channel: "#fulfillment",
-              message: "New order #{{trigger.order_number}} - {{trigger.total}} - Ship to: {{trigger.shipping_address}}"
-            }
-          }
-        },
-        {
-          id: "action-3",
-          type: "google_sheets_action_add_row",
-          position: { x: 300, y: 250 },
-          data: {
-            name: "Log Order",
-            config: {
-              spreadsheet: "{{ORDERS_SHEET_ID}}",
-              sheet: "Orders",
-              values: {
-                "Order ID": "{{trigger.order_number}}",
-                "Customer": "{{trigger.customer.name}}",
-                "Total": "{{trigger.total}}",
-                "Date": "{{trigger.created_at}}"
-              }
-            }
-          }
-        }
-      ],
-      edges: [
-        { id: "e1", source: "trigger-1", target: "action-1" },
-        { id: "e2", source: "trigger-1", target: "action-2" },
-        { id: "e3", source: "trigger-1", target: "action-3" }
-      ]
-    }
-  },
-
-  // Abandoned Cart Recovery
-  {
-    id: "abandoned-cart-recovery",
-    name: "Abandoned Cart Recovery",
-    description: "Automatically send recovery emails for abandoned shopping carts",
-    category: "E-commerce",
-    tags: ["cart", "recovery", "email", "sales"],
-    integrations: ["shopify", "gmail"],
-    difficulty: "intermediate",
-    estimatedTime: "10 mins",
-    workflow_json: {
-      nodes: [
-        {
-          id: "trigger-1",
-          type: "shopify_trigger_abandoned_cart",
-          position: { x: 100, y: 100 },
-          data: {
-            name: "Cart Abandoned",
-            config: {
-              wait_time: 3600 // 1 hour
-            }
-          }
-        },
-        {
-          id: "action-1",
-          type: "gmail_action_send_email",
-          position: { x: 300, y: 100 },
-          data: {
-            name: "Recovery Email 1",
-            config: {
-              to: "{{trigger.email}}",
-              subject: "You left something in your cart!",
-              body: "Hi {{trigger.name}}, you have items waiting in your cart. Complete your purchase with 10% off using code COMEBACK10"
-            }
-          }
-        },
-        {
-          id: "delay-1",
-          type: "logic_delay",
-          position: { x: 500, y: 100 },
-          data: {
-            name: "Wait 24 Hours",
-            config: {
-              delay: 86400
-            }
-          }
-        },
-        {
-          id: "action-2",
-          type: "gmail_action_send_email",
-          position: { x: 700, y: 100 },
-          data: {
-            name: "Recovery Email 2",
-            config: {
-              to: "{{trigger.email}}",
-              subject: "Last chance for your items!",
-              body: "Your cart items are about to expire. Complete your order now with 15% off: SAVE15"
-            }
-          }
-        }
-      ],
-      edges: [
-        { id: "e1", source: "trigger-1", target: "action-1" },
-        { id: "e2", source: "action-1", target: "delay-1" },
-        { id: "e3", source: "delay-1", target: "action-2" }
-      ]
-    }
-  },
-
   // ============== NOTIFICATION TEMPLATES ==============
 
   // Multi-Channel Alert System
@@ -1741,87 +1387,6 @@ export const predefinedTemplates: PredefinedTemplate[] = [
     }
   },
 
-  // ============== DEVOPS TEMPLATES ==============
-
-  // Deployment Pipeline
-  {
-    id: "deployment-pipeline",
-    name: "Automated Deployment Pipeline",
-    description: "Automate code deployment with notifications and rollback capabilities",
-    category: "DevOps",
-    tags: ["deployment", "ci/cd", "github", "notifications"],
-    integrations: ["github", "slack"],
-    difficulty: "advanced",
-    estimatedTime: "15 mins",
-    workflow_json: {
-      nodes: [
-        {
-          id: "trigger-1",
-          type: "github_trigger_push",
-          position: { x: 100, y: 100 },
-          data: {
-            name: "Code Push to Main",
-            config: {
-              branch: "main"
-            }
-          }
-        },
-        {
-          id: "action-1",
-          type: "github_action_run_workflow",
-          position: { x: 300, y: 100 },
-          data: {
-            name: "Run Tests",
-            config: {
-              workflow: "test.yml"
-            }
-          }
-        },
-        {
-          id: "condition-1",
-          type: "logic_condition",
-          position: { x: 500, y: 100 },
-          data: {
-            name: "Tests Passed?",
-            config: {
-              conditions: [
-                { field: "{{action-1.status}}", operator: "equals", value: "success" }
-              ]
-            }
-          }
-        },
-        {
-          id: "action-2",
-          type: "github_action_create_deployment",
-          position: { x: 700, y: 50 },
-          data: {
-            name: "Deploy to Production",
-            config: {
-              environment: "production"
-            }
-          }
-        },
-        {
-          id: "action-3",
-          type: "slack_action_send_message",
-          position: { x: 700, y: 150 },
-          data: {
-            name: "Notify Failure",
-            config: {
-              channel: "#dev-alerts",
-              message: "❌ Deployment failed for commit {{trigger.commit_id}}: Tests did not pass"
-            }
-          }
-        }
-      ],
-      edges: [
-        { id: "e1", source: "trigger-1", target: "action-1" },
-        { id: "e2", source: "action-1", target: "condition-1" },
-        { id: "e3", source: "condition-1", target: "action-2", sourceHandle: "true" },
-        { id: "e4", source: "condition-1", target: "action-3", sourceHandle: "false" }
-      ]
-    }
-  },
   {
     id: "ai-message-support-reply",
     name: "AI Message - Support Reply",
@@ -2429,6 +1994,1195 @@ export const predefinedTemplates: PredefinedTemplate[] = [
         { id: "edge-postmortem-1", source: "slack-trigger-incident", target: "ai-message-postmortem" },
         { id: "edge-postmortem-2", source: "ai-message-postmortem", target: "notion-create-postmortem" },
         { id: "edge-postmortem-3", source: "notion-create-postmortem", target: "slack-notify-postmortem" }
+      ]
+    }
+  },
+
+  // ============== MARKETING TEMPLATES ==============
+
+  {
+    id: "mailchimp-subscriber-welcome",
+    name: "Mailchimp Subscriber Welcome Sequence",
+    description: "Automatically send a personalized welcome email and follow-up when someone subscribes to your Mailchimp audience.",
+    category: "Marketing",
+    tags: ["mailchimp", "email", "onboarding", "welcome"],
+    integrations: ["mailchimp", "gmail"],
+    difficulty: "beginner",
+    estimatedTime: "5 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "mailchimp-trigger",
+          type: "mailchimp_trigger_new_subscriber",
+          position: { x: 100, y: 260 },
+          data: { type: "mailchimp_trigger_new_subscriber", title: "New Subscriber", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-welcome",
+          type: "ai_message",
+          position: { x: 380, y: 260 },
+          data: {
+            type: "ai_message", title: "Draft Welcome Email", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.4,
+              userPrompt: "Write a warm, short welcome email for new subscriber {{mailchimp-trigger.email}}. Include a thank-you, what they can expect, and a friendly CTA.",
+              outputFields: "subject | Email subject line\nbody | Email body HTML"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "gmail-welcome",
+          type: "gmail_action_send_email",
+          position: { x: 660, y: 260 },
+          data: { type: "gmail_action_send_email", title: "Send Welcome Email", config: { to: "{{mailchimp-trigger.email}}", subject: "{{ai-welcome.subject}}", body: "{{ai-welcome.body}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "mailchimp-trigger", target: "ai-welcome" },
+        { id: "e2", source: "ai-welcome", target: "gmail-welcome" }
+      ]
+    }
+  },
+  {
+    id: "ai-blog-to-newsletter",
+    name: "AI Blog-to-Newsletter Pipeline",
+    description: "When a Google Doc is updated, AI generates newsletter content and creates a Mailchimp campaign automatically.",
+    category: "Marketing",
+    tags: ["blog", "newsletter", "ai", "mailchimp", "google-docs"],
+    integrations: ["google_docs", "mailchimp"],
+    difficulty: "intermediate",
+    estimatedTime: "8 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "gdocs-trigger",
+          type: "google_docs_trigger_document_updated",
+          position: { x: 100, y: 260 },
+          data: { type: "google_docs_trigger_document_updated", title: "Doc Updated", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-newsletter",
+          type: "ai_message",
+          position: { x: 380, y: 260 },
+          data: {
+            type: "ai_message", title: "Generate Newsletter", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.5,
+              userPrompt: "Based on this blog post content: {{gdocs-trigger.content}}, generate a compelling email newsletter. Include a catchy subject line, preview text, and formatted body.",
+              outputFields: "subject | Email subject\npreview | Preview text\nbody | Newsletter HTML body"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "mailchimp-campaign",
+          type: "mailchimp_action_create_campaign",
+          position: { x: 660, y: 260 },
+          data: { type: "mailchimp_action_create_campaign", title: "Create Campaign", config: { subject: "{{ai-newsletter.subject}}", previewText: "{{ai-newsletter.preview}}", html: "{{ai-newsletter.body}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "gdocs-trigger", target: "ai-newsletter" },
+        { id: "e2", source: "ai-newsletter", target: "mailchimp-campaign" }
+      ]
+    }
+  },
+  {
+    id: "hubspot-to-mailchimp-sync",
+    name: "HubSpot Lead to Mailchimp Sync",
+    description: "When a new contact is created in HubSpot, automatically add them to your Mailchimp audience and notify your team on Slack.",
+    category: "Marketing",
+    tags: ["hubspot", "mailchimp", "sync", "leads"],
+    integrations: ["hubspot", "mailchimp", "slack"],
+    difficulty: "beginner",
+    estimatedTime: "5 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "hubspot-trigger",
+          type: "hubspot_trigger_new_contact",
+          position: { x: 100, y: 260 },
+          data: { type: "hubspot_trigger_new_contact", title: "New HubSpot Contact", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "mailchimp-add",
+          type: "mailchimp_action_add_subscriber",
+          position: { x: 380, y: 200 },
+          data: { type: "mailchimp_action_add_subscriber", title: "Add to Mailchimp", config: { email: "{{hubspot-trigger.email}}", firstName: "{{hubspot-trigger.firstname}}", lastName: "{{hubspot-trigger.lastname}}" }, needsConfiguration: true }
+        },
+        {
+          id: "slack-notify",
+          type: "slack_action_send_message",
+          position: { x: 380, y: 360 },
+          data: { type: "slack_action_send_message", title: "Notify Team", config: { channel: "#marketing", message: "New lead synced to Mailchimp: {{hubspot-trigger.email}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "hubspot-trigger", target: "mailchimp-add" },
+        { id: "e2", source: "hubspot-trigger", target: "slack-notify" }
+      ]
+    }
+  },
+  {
+    id: "ai-content-repurposer",
+    name: "AI Content Repurposer",
+    description: "Takes long-form content from Google Docs and generates social media posts, email snippets, and blog summaries using AI.",
+    category: "Marketing",
+    tags: ["ai", "content", "repurpose", "social-media"],
+    integrations: ["google_docs", "google_sheets", "slack"],
+    difficulty: "intermediate",
+    estimatedTime: "8 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "gdocs-trigger",
+          type: "google_docs_trigger_document_updated",
+          position: { x: 100, y: 260 },
+          data: { type: "google_docs_trigger_document_updated", title: "Content Updated", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-repurpose",
+          type: "ai_message",
+          position: { x: 380, y: 260 },
+          data: {
+            type: "ai_message", title: "Repurpose Content", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.6,
+              userPrompt: "From this content: {{gdocs-trigger.content}}, generate: 1) A LinkedIn post (professional tone), 2) A tweet-length post (under 280 chars), 3) An email snippet (2-3 sentences), 4) A one-paragraph blog summary.",
+              outputFields: "linkedin_post | LinkedIn post\ntweet | Short social post\nemail_snippet | Email snippet\nblog_summary | Blog summary"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "sheets-log",
+          type: "google_sheets_action_add_row",
+          position: { x: 660, y: 200 },
+          data: { type: "google_sheets_action_add_row", title: "Log to Sheets", config: { values: { "LinkedIn": "{{ai-repurpose.linkedin_post}}", "Tweet": "{{ai-repurpose.tweet}}", "Email": "{{ai-repurpose.email_snippet}}", "Summary": "{{ai-repurpose.blog_summary}}" } }, needsConfiguration: true }
+        },
+        {
+          id: "slack-share",
+          type: "slack_action_send_message",
+          position: { x: 660, y: 360 },
+          data: { type: "slack_action_send_message", title: "Share in Slack", config: { channel: "#content", message: "New content variants ready!\n\nLinkedIn: {{ai-repurpose.linkedin_post}}\n\nTweet: {{ai-repurpose.tweet}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "gdocs-trigger", target: "ai-repurpose" },
+        { id: "e2", source: "ai-repurpose", target: "sheets-log" },
+        { id: "e3", source: "ai-repurpose", target: "slack-share" }
+      ]
+    }
+  },
+
+  // ============== FINANCE TEMPLATES ==============
+
+  {
+    id: "stripe-invoice-processor",
+    name: "Stripe Invoice Processor",
+    description: "When a Stripe payment is received, AI categorizes the transaction, logs it to Google Sheets, and sends a receipt email.",
+    category: "Finance",
+    tags: ["stripe", "invoices", "accounting", "google-sheets"],
+    integrations: ["stripe", "google_sheets", "gmail"],
+    difficulty: "intermediate",
+    estimatedTime: "7 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "stripe-trigger",
+          type: "stripe_trigger_payment_received",
+          position: { x: 100, y: 260 },
+          data: { type: "stripe_trigger_payment_received", title: "Payment Received", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-categorize",
+          type: "ai_message",
+          position: { x: 380, y: 260 },
+          data: {
+            type: "ai_message", title: "Categorize Expense", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.2,
+              userPrompt: "Categorize this payment: Amount: {{stripe-trigger.amount}}, Description: {{stripe-trigger.description}}, Customer: {{stripe-trigger.customer_email}}. Categories: Software, Services, Subscription, One-time Purchase, Other.",
+              outputFields: "category | Expense category\nsummary | Short transaction summary"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "sheets-log",
+          type: "google_sheets_action_add_row",
+          position: { x: 660, y: 200 },
+          data: { type: "google_sheets_action_add_row", title: "Log Transaction", config: { values: { "Date": "{{stripe-trigger.created}}", "Amount": "{{stripe-trigger.amount}}", "Category": "{{ai-categorize.category}}", "Customer": "{{stripe-trigger.customer_email}}", "Summary": "{{ai-categorize.summary}}" } }, needsConfiguration: true }
+        },
+        {
+          id: "gmail-receipt",
+          type: "gmail_action_send_email",
+          position: { x: 660, y: 360 },
+          data: { type: "gmail_action_send_email", title: "Send Receipt", config: { to: "{{stripe-trigger.customer_email}}", subject: "Payment Receipt - {{stripe-trigger.amount}}", body: "Thank you for your payment of {{stripe-trigger.amount}}. Transaction: {{ai-categorize.summary}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "stripe-trigger", target: "ai-categorize" },
+        { id: "e2", source: "ai-categorize", target: "sheets-log" },
+        { id: "e3", source: "ai-categorize", target: "gmail-receipt" }
+      ]
+    }
+  },
+  {
+    id: "revenue-dashboard-updater",
+    name: "Revenue Dashboard Updater",
+    description: "Automatically logs every Stripe payment to a Google Sheets revenue dashboard and posts a summary to Slack.",
+    category: "Finance",
+    tags: ["stripe", "revenue", "dashboard", "google-sheets"],
+    integrations: ["stripe", "google_sheets", "slack"],
+    difficulty: "beginner",
+    estimatedTime: "5 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "stripe-trigger",
+          type: "stripe_trigger_payment_received",
+          position: { x: 100, y: 260 },
+          data: { type: "stripe_trigger_payment_received", title: "Payment Received", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "sheets-update",
+          type: "google_sheets_action_add_row",
+          position: { x: 380, y: 200 },
+          data: { type: "google_sheets_action_add_row", title: "Update Dashboard", config: { values: { "Date": "{{stripe-trigger.created}}", "Amount": "{{stripe-trigger.amount}}", "Customer": "{{stripe-trigger.customer_email}}", "Status": "{{stripe-trigger.status}}" } }, needsConfiguration: true }
+        },
+        {
+          id: "slack-update",
+          type: "slack_action_send_message",
+          position: { x: 380, y: 360 },
+          data: { type: "slack_action_send_message", title: "Revenue Update", config: { channel: "#revenue", message: "Payment received: {{stripe-trigger.amount}} from {{stripe-trigger.customer_email}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "stripe-trigger", target: "sheets-update" },
+        { id: "e2", source: "stripe-trigger", target: "slack-update" }
+      ]
+    }
+  },
+  {
+    id: "expense-report-from-email",
+    name: "AI Expense Report from Email",
+    description: "Emails with [EXPENSE] in the subject are classified by AI into categories (travel, software, meals, other), logged to Airtable, and finance is notified.",
+    category: "Finance",
+    tags: ["expenses", "email", "ai-router", "airtable", "accounting"],
+    integrations: ["gmail", "airtable", "slack"],
+    difficulty: "advanced",
+    estimatedTime: "10 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "gmail-trigger",
+          type: "gmail_trigger_new_email",
+          position: { x: 100, y: 280 },
+          data: { type: "gmail_trigger_new_email", title: "Expense Email", config: { subjectFilter: "[EXPENSE]" }, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-router-expense",
+          type: "ai_router",
+          position: { x: 380, y: 280 },
+          data: {
+            type: "ai_router", title: "Classify Expense", config: {
+              template: "custom",
+              systemPrompt: "Classify this expense email into: travel, software, meals, or other. Extract amount and vendor if mentioned.",
+              model: "gpt-4o-mini", apiSource: "chainreact", memory: "workflow",
+              outputPaths: [
+                { id: "travel", name: "Travel", description: "Travel expenses", color: "#3b82f6", condition: { type: "ai_decision", minConfidence: 0.6 } },
+                { id: "software", name: "Software", description: "Software purchases", color: "#8b5cf6", condition: { type: "ai_decision", minConfidence: 0.6 } },
+                { id: "meals", name: "Meals", description: "Meals and entertainment", color: "#f59e0b", condition: { type: "ai_decision", minConfidence: 0.6 } },
+                { id: "other", name: "Other", description: "Other expenses", color: "#6b7280", condition: { type: "fallback" } }
+              ],
+              decisionMode: "single", includeReasoning: true, temperature: 0.2
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "airtable-log",
+          type: "airtable_action_create_record",
+          position: { x: 660, y: 200 },
+          data: { type: "airtable_action_create_record", title: "Log Expense", config: { fields: { "Subject": "{{gmail-trigger.subject}}", "From": "{{gmail-trigger.from}}", "Category": "{{ai-router-expense.selectedPath}}", "Date": "{{gmail-trigger.date}}" } }, needsConfiguration: true }
+        },
+        {
+          id: "slack-finance",
+          type: "slack_action_send_message",
+          position: { x: 660, y: 380 },
+          data: { type: "slack_action_send_message", title: "Notify Finance", config: { channel: "#finance", message: "New expense logged: {{gmail-trigger.subject}} - Category: {{ai-router-expense.selectedPath}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "gmail-trigger", target: "ai-router-expense" },
+        { id: "e2", source: "ai-router-expense", target: "airtable-log" },
+        { id: "e3", source: "ai-router-expense", target: "slack-finance" }
+      ]
+    }
+  },
+
+  // ============== ADDITIONAL NOTIFICATION TEMPLATES ==============
+
+  {
+    id: "stripe-payment-alert-hub",
+    name: "Stripe Payment Alert Hub",
+    description: "Get instant Slack and email notifications with AI-generated summaries whenever a Stripe payment is received.",
+    category: "Notifications",
+    tags: ["stripe", "alerts", "payment", "slack", "gmail"],
+    integrations: ["stripe", "slack", "gmail"],
+    difficulty: "beginner",
+    estimatedTime: "5 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "stripe-trigger",
+          type: "stripe_trigger_payment_received",
+          position: { x: 100, y: 260 },
+          data: { type: "stripe_trigger_payment_received", title: "Payment Received", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-summarize",
+          type: "ai_message",
+          position: { x: 380, y: 260 },
+          data: {
+            type: "ai_message", title: "Summarize Payment", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.3,
+              userPrompt: "Summarize this payment for team notification: Amount: {{stripe-trigger.amount}}, Customer: {{stripe-trigger.customer_email}}, Status: {{stripe-trigger.status}}.",
+              outputFields: "summary | Payment summary\nslack_message | Formatted Slack message"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "slack-alert",
+          type: "slack_action_send_message",
+          position: { x: 660, y: 200 },
+          data: { type: "slack_action_send_message", title: "Slack Alert", config: { channel: "#payments", message: "{{ai-summarize.slack_message}}" }, needsConfiguration: true }
+        },
+        {
+          id: "gmail-alert",
+          type: "gmail_action_send_email",
+          position: { x: 660, y: 360 },
+          data: { type: "gmail_action_send_email", title: "Email Alert", config: { subject: "Payment: {{stripe-trigger.amount}}", body: "{{ai-summarize.summary}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "stripe-trigger", target: "ai-summarize" },
+        { id: "e2", source: "ai-summarize", target: "slack-alert" },
+        { id: "e3", source: "ai-summarize", target: "gmail-alert" }
+      ]
+    }
+  },
+  {
+    id: "airtable-record-notifier",
+    name: "New Airtable Record Notifier",
+    description: "When a new record is added to Airtable, AI formats a notification and sends it to Discord and Slack.",
+    category: "Notifications",
+    tags: ["airtable", "notifications", "discord", "slack"],
+    integrations: ["airtable", "discord", "slack"],
+    difficulty: "beginner",
+    estimatedTime: "5 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "airtable-trigger",
+          type: "airtable_trigger_new_record",
+          position: { x: 100, y: 260 },
+          data: { type: "airtable_trigger_new_record", title: "New Record", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-format",
+          type: "ai_message",
+          position: { x: 380, y: 260 },
+          data: {
+            type: "ai_message", title: "Format Notification", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.3,
+              userPrompt: "Format a clean notification message for this new Airtable record: {{airtable-trigger.fields}}. Keep it concise.",
+              outputFields: "message | Notification message"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "discord-notify",
+          type: "discord_action_send_message",
+          position: { x: 660, y: 200 },
+          data: { type: "discord_action_send_message", title: "Discord Notification", config: { message: "{{ai-format.message}}" }, needsConfiguration: true }
+        },
+        {
+          id: "slack-notify",
+          type: "slack_action_send_message",
+          position: { x: 660, y: 360 },
+          data: { type: "slack_action_send_message", title: "Slack Notification", config: { message: "{{ai-format.message}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "airtable-trigger", target: "ai-format" },
+        { id: "e2", source: "ai-format", target: "discord-notify" },
+        { id: "e3", source: "ai-format", target: "slack-notify" }
+      ]
+    }
+  },
+
+  // ============== ADDITIONAL PRODUCTIVITY TEMPLATES ==============
+
+  {
+    id: "email-to-trello-task",
+    name: "Email to Trello Task",
+    description: "AI extracts task details from incoming emails and creates Trello cards with priority and due dates, then notifies the team on Slack.",
+    category: "Productivity",
+    tags: ["email", "trello", "tasks", "ai", "automation"],
+    integrations: ["gmail", "trello", "slack"],
+    difficulty: "beginner",
+    estimatedTime: "5 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "gmail-trigger",
+          type: "gmail_trigger_new_email",
+          position: { x: 100, y: 260 },
+          data: { type: "gmail_trigger_new_email", title: "New Email", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-extract",
+          type: "ai_message",
+          position: { x: 380, y: 260 },
+          data: {
+            type: "ai_message", title: "Extract Task", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.2,
+              userPrompt: "From this email (Subject: {{gmail-trigger.subject}}, Body: {{gmail-trigger.body}}), extract: task title, priority (Low/Medium/High), and a brief description.",
+              outputFields: "title | Task title\npriority | Priority level\ndescription | Brief task description"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "trello-card",
+          type: "trello_action_create_card",
+          position: { x: 660, y: 200 },
+          data: { type: "trello_action_create_card", title: "Create Trello Card", config: { name: "{{ai-extract.title}}", desc: "Priority: {{ai-extract.priority}}\n\n{{ai-extract.description}}" }, needsConfiguration: true }
+        },
+        {
+          id: "slack-notify",
+          type: "slack_action_send_message",
+          position: { x: 660, y: 360 },
+          data: { type: "slack_action_send_message", title: "Notify Team", config: { message: "New task from email: {{ai-extract.title}} ({{ai-extract.priority}} priority)" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "gmail-trigger", target: "ai-extract" },
+        { id: "e2", source: "ai-extract", target: "trello-card" },
+        { id: "e3", source: "ai-extract", target: "slack-notify" }
+      ]
+    }
+  },
+  {
+    id: "monday-task-from-slack",
+    name: "Monday.com Task from Slack",
+    description: "AI parses Slack messages to extract task details and creates Monday.com items with a Gmail confirmation.",
+    category: "Productivity",
+    tags: ["slack", "monday", "tasks", "ai"],
+    integrations: ["slack", "monday", "gmail"],
+    difficulty: "intermediate",
+    estimatedTime: "6 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "slack-trigger",
+          type: "slack_trigger_new_message",
+          position: { x: 100, y: 260 },
+          data: { type: "slack_trigger_new_message", title: "Slack Message", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-parse",
+          type: "ai_message",
+          position: { x: 380, y: 260 },
+          data: {
+            type: "ai_message", title: "Parse Task Details", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.2,
+              userPrompt: "Extract task details from this Slack message: {{slack-trigger.text}}. Return task name, description, and priority.",
+              outputFields: "name | Task name\ndescription | Task description\npriority | Priority"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "monday-item",
+          type: "monday_action_create_item",
+          position: { x: 660, y: 200 },
+          data: { type: "monday_action_create_item", title: "Create Monday Item", config: { itemName: "{{ai-parse.name}}" }, needsConfiguration: true }
+        },
+        {
+          id: "gmail-confirm",
+          type: "gmail_action_send_email",
+          position: { x: 660, y: 360 },
+          data: { type: "gmail_action_send_email", title: "Email Confirmation", config: { subject: "Task Created: {{ai-parse.name}}", body: "A new Monday.com task was created from Slack: {{ai-parse.name}} - {{ai-parse.description}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "slack-trigger", target: "ai-parse" },
+        { id: "e2", source: "ai-parse", target: "monday-item" },
+        { id: "e3", source: "ai-parse", target: "gmail-confirm" }
+      ]
+    }
+  },
+  {
+    id: "meeting-notes-to-notion",
+    name: "Meeting Notes to Notion with AI Summary",
+    description: "After a Google Calendar event, AI generates a meeting summary and creates a Notion page, then emails the summary to attendees.",
+    category: "Productivity",
+    tags: ["meetings", "notion", "ai", "calendar", "notes"],
+    integrations: ["google_calendar", "notion", "gmail"],
+    difficulty: "intermediate",
+    estimatedTime: "7 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "calendar-trigger",
+          type: "google_calendar_trigger_event_ended",
+          position: { x: 100, y: 260 },
+          data: { type: "google_calendar_trigger_event_ended", title: "Meeting Ended", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-summary",
+          type: "ai_message",
+          position: { x: 380, y: 260 },
+          data: {
+            type: "ai_message", title: "Generate Summary", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.4,
+              userPrompt: "Generate a structured meeting notes template for: {{calendar-trigger.summary}}. Include sections for: Key Decisions, Action Items, and Next Steps.",
+              outputFields: "title | Notes page title\ncontent | Meeting notes content\nemail_summary | Brief email summary"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "notion-page",
+          type: "notion_action_create_page",
+          position: { x: 660, y: 200 },
+          data: { type: "notion_action_create_page", title: "Create Notion Page", config: { title: "{{ai-summary.title}}", content: "{{ai-summary.content}}" }, needsConfiguration: true }
+        },
+        {
+          id: "gmail-attendees",
+          type: "gmail_action_send_email",
+          position: { x: 660, y: 360 },
+          data: { type: "gmail_action_send_email", title: "Email Attendees", config: { subject: "Meeting Notes: {{calendar-trigger.summary}}", body: "{{ai-summary.email_summary}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "calendar-trigger", target: "ai-summary" },
+        { id: "e2", source: "ai-summary", target: "notion-page" },
+        { id: "e3", source: "ai-summary", target: "gmail-attendees" }
+      ]
+    }
+  },
+  {
+    id: "document-backup-pipeline",
+    name: "Document Backup Pipeline",
+    description: "When a new file is added to Google Drive, automatically back it up to Dropbox and OneDrive with an email confirmation.",
+    category: "Productivity",
+    tags: ["backup", "google-drive", "dropbox", "onedrive"],
+    integrations: ["google_drive", "dropbox", "onedrive", "gmail"],
+    difficulty: "beginner",
+    estimatedTime: "4 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "drive-trigger",
+          type: "google_drive_trigger_new_file",
+          position: { x: 100, y: 260 },
+          data: { type: "google_drive_trigger_new_file", title: "New File in Drive", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "dropbox-upload",
+          type: "dropbox_action_upload_file",
+          position: { x: 380, y: 160 },
+          data: { type: "dropbox_action_upload_file", title: "Backup to Dropbox", config: { path: "/backups/{{drive-trigger.name}}" }, needsConfiguration: true }
+        },
+        {
+          id: "onedrive-upload",
+          type: "onedrive_action_upload_file",
+          position: { x: 380, y: 360 },
+          data: { type: "onedrive_action_upload_file", title: "Backup to OneDrive", config: { path: "/backups/{{drive-trigger.name}}" }, needsConfiguration: true }
+        },
+        {
+          id: "gmail-confirm",
+          type: "gmail_action_send_email",
+          position: { x: 660, y: 260 },
+          data: { type: "gmail_action_send_email", title: "Confirmation Email", config: { subject: "File Backed Up: {{drive-trigger.name}}", body: "Your file '{{drive-trigger.name}}' has been backed up to Dropbox and OneDrive." }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "drive-trigger", target: "dropbox-upload" },
+        { id: "e2", source: "drive-trigger", target: "onedrive-upload" },
+        { id: "e3", source: "dropbox-upload", target: "gmail-confirm" }
+      ]
+    }
+  },
+
+  // ============== ADDITIONAL DATA SYNC TEMPLATES ==============
+
+  {
+    id: "airtable-to-sheets-sync",
+    name: "Airtable to Google Sheets Sync",
+    description: "When a new record is added to Airtable, automatically sync it as a new row in Google Sheets and notify the team on Slack.",
+    category: "Data Sync",
+    tags: ["airtable", "google-sheets", "sync", "data"],
+    integrations: ["airtable", "google_sheets", "slack"],
+    difficulty: "beginner",
+    estimatedTime: "4 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "airtable-trigger",
+          type: "airtable_trigger_new_record",
+          position: { x: 100, y: 260 },
+          data: { type: "airtable_trigger_new_record", title: "New Airtable Record", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "sheets-add",
+          type: "google_sheets_action_add_row",
+          position: { x: 380, y: 200 },
+          data: { type: "google_sheets_action_add_row", title: "Add to Sheets", config: { values: { "Name": "{{airtable-trigger.Name}}", "Status": "{{airtable-trigger.Status}}", "Date": "{{airtable-trigger.Date}}" } }, needsConfiguration: true }
+        },
+        {
+          id: "slack-notify",
+          type: "slack_action_send_message",
+          position: { x: 380, y: 360 },
+          data: { type: "slack_action_send_message", title: "Notify Team", config: { message: "Airtable record synced to Sheets: {{airtable-trigger.Name}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "airtable-trigger", target: "sheets-add" },
+        { id: "e2", source: "airtable-trigger", target: "slack-notify" }
+      ]
+    }
+  },
+  {
+    id: "sheets-to-airtable-sync",
+    name: "Google Sheets to Airtable Sync",
+    description: "When a new row is added to Google Sheets, create a corresponding record in Airtable and send a Gmail confirmation.",
+    category: "Data Sync",
+    tags: ["google-sheets", "airtable", "sync", "data"],
+    integrations: ["google_sheets", "airtable", "gmail"],
+    difficulty: "beginner",
+    estimatedTime: "4 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "sheets-trigger",
+          type: "google_sheets_trigger_new_row",
+          position: { x: 100, y: 260 },
+          data: { type: "google_sheets_trigger_new_row", title: "New Sheets Row", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "airtable-create",
+          type: "airtable_action_create_record",
+          position: { x: 380, y: 200 },
+          data: { type: "airtable_action_create_record", title: "Create Airtable Record", config: {}, needsConfiguration: true }
+        },
+        {
+          id: "gmail-confirm",
+          type: "gmail_action_send_email",
+          position: { x: 380, y: 360 },
+          data: { type: "gmail_action_send_email", title: "Send Confirmation", config: { subject: "Record synced to Airtable", body: "A new row from Google Sheets has been synced to Airtable." }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "sheets-trigger", target: "airtable-create" },
+        { id: "e2", source: "sheets-trigger", target: "gmail-confirm" }
+      ]
+    }
+  },
+  {
+    id: "cross-platform-file-sync",
+    name: "Cross-Platform File Sync",
+    description: "When a new file is added to Dropbox, automatically sync it to Google Drive and OneDrive for cross-platform backup.",
+    category: "Data Sync",
+    tags: ["dropbox", "google-drive", "onedrive", "file-sync"],
+    integrations: ["dropbox", "google_drive", "onedrive"],
+    difficulty: "beginner",
+    estimatedTime: "3 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "dropbox-trigger",
+          type: "dropbox_trigger_new_file",
+          position: { x: 100, y: 260 },
+          data: { type: "dropbox_trigger_new_file", title: "New File in Dropbox", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "gdrive-upload",
+          type: "google_drive_action_upload_file",
+          position: { x: 380, y: 180 },
+          data: { type: "google_drive_action_upload_file", title: "Upload to Drive", config: {}, needsConfiguration: true }
+        },
+        {
+          id: "onedrive-upload",
+          type: "onedrive_action_upload_file",
+          position: { x: 380, y: 360 },
+          data: { type: "onedrive_action_upload_file", title: "Upload to OneDrive", config: {}, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "dropbox-trigger", target: "gdrive-upload" },
+        { id: "e2", source: "dropbox-trigger", target: "onedrive-upload" }
+      ]
+    }
+  },
+  {
+    id: "hubspot-contact-sheets-report",
+    name: "HubSpot Contact to Sheets Report",
+    description: "When a HubSpot contact is updated, log changes to Google Sheets and send a Gmail alert for high-value contacts.",
+    category: "Data Sync",
+    tags: ["hubspot", "google-sheets", "crm", "reporting"],
+    integrations: ["hubspot", "google_sheets", "gmail"],
+    difficulty: "intermediate",
+    estimatedTime: "6 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "hubspot-trigger",
+          type: "hubspot_trigger_contact_updated",
+          position: { x: 100, y: 260 },
+          data: { type: "hubspot_trigger_contact_updated", title: "Contact Updated", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "sheets-log",
+          type: "google_sheets_action_add_row",
+          position: { x: 380, y: 260 },
+          data: { type: "google_sheets_action_add_row", title: "Log to Sheets", config: { values: { "Email": "{{hubspot-trigger.email}}", "Name": "{{hubspot-trigger.firstname}} {{hubspot-trigger.lastname}}", "Company": "{{hubspot-trigger.company}}", "Updated": "{{hubspot-trigger.lastmodifieddate}}" } }, needsConfiguration: true }
+        },
+        {
+          id: "gmail-alert",
+          type: "gmail_action_send_email",
+          position: { x: 660, y: 260 },
+          data: { type: "gmail_action_send_email", title: "Alert for High-Value", config: { subject: "High-Value Contact Updated: {{hubspot-trigger.email}}", body: "Contact {{hubspot-trigger.firstname}} {{hubspot-trigger.lastname}} has been updated in HubSpot." }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "hubspot-trigger", target: "sheets-log" },
+        { id: "e2", source: "sheets-log", target: "gmail-alert" }
+      ]
+    }
+  },
+
+  // ============== ADDITIONAL HR TEMPLATES ==============
+
+  {
+    id: "new-employee-it-checklist",
+    name: "New Employee IT Setup Checklist",
+    description: "When a new hire email arrives, AI extracts details, creates a Trello IT checklist card, sets up an orientation calendar event, and sends a Teams welcome message.",
+    category: "HR",
+    tags: ["onboarding", "trello", "calendar", "teams", "new-hire"],
+    integrations: ["gmail", "trello", "google_calendar", "teams"],
+    difficulty: "advanced",
+    estimatedTime: "10 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "gmail-trigger",
+          type: "gmail_trigger_new_email",
+          position: { x: 100, y: 280 },
+          data: { type: "gmail_trigger_new_email", title: "New Hire Email", config: { subjectFilter: "[NEW HIRE]" }, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-extract",
+          type: "ai_message",
+          position: { x: 380, y: 280 },
+          data: {
+            type: "ai_message", title: "Extract Hire Details", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.2,
+              userPrompt: "From this new hire email: {{gmail-trigger.body}}, extract: full name, role/title, start date, and manager name.",
+              outputFields: "name | Full name\nrole | Job title\nstart_date | Start date\nmanager | Manager name"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "trello-card",
+          type: "trello_action_create_card",
+          position: { x: 660, y: 160 },
+          data: { type: "trello_action_create_card", title: "Create IT Checklist", config: { name: "IT Setup: {{ai-extract.name}} - {{ai-extract.role}}", desc: "Start date: {{ai-extract.start_date}}\nManager: {{ai-extract.manager}}\n\nChecklist:\n- [ ] Laptop provisioned\n- [ ] Email account created\n- [ ] Slack/Teams access\n- [ ] VPN setup\n- [ ] Badge access" }, needsConfiguration: true }
+        },
+        {
+          id: "calendar-event",
+          type: "google_calendar_action_create_event",
+          position: { x: 660, y: 320 },
+          data: { type: "google_calendar_action_create_event", title: "Orientation Event", config: { summary: "Orientation: {{ai-extract.name}}", description: "New hire orientation for {{ai-extract.name}} ({{ai-extract.role}})" }, needsConfiguration: true }
+        },
+        {
+          id: "teams-welcome",
+          type: "teams_action_send_message",
+          position: { x: 660, y: 460 },
+          data: { type: "teams_action_send_message", title: "Teams Welcome", config: { message: "Welcome {{ai-extract.name}} joining as {{ai-extract.role}}! Start date: {{ai-extract.start_date}}. Manager: {{ai-extract.manager}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "gmail-trigger", target: "ai-extract" },
+        { id: "e2", source: "ai-extract", target: "trello-card" },
+        { id: "e3", source: "ai-extract", target: "calendar-event" },
+        { id: "e4", source: "ai-extract", target: "teams-welcome" }
+      ]
+    }
+  },
+
+  // ============== ADDITIONAL SALES & CRM TEMPLATES ==============
+
+  {
+    id: "stripe-customer-lifecycle",
+    name: "Stripe Customer Lifecycle Tracker",
+    description: "Track Stripe payments, update HubSpot contacts, and send different Slack notifications for new vs repeat customers.",
+    category: "Sales & CRM",
+    tags: ["stripe", "hubspot", "lifecycle", "crm"],
+    integrations: ["stripe", "hubspot", "slack"],
+    difficulty: "intermediate",
+    estimatedTime: "7 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "stripe-trigger",
+          type: "stripe_trigger_payment_received",
+          position: { x: 100, y: 260 },
+          data: { type: "stripe_trigger_payment_received", title: "Payment Received", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "hubspot-update",
+          type: "hubspot_action_update_contact",
+          position: { x: 380, y: 260 },
+          data: { type: "hubspot_action_update_contact", title: "Update HubSpot", config: { email: "{{stripe-trigger.customer_email}}", properties: { last_payment_date: "{{stripe-trigger.created}}", total_spent: "{{stripe-trigger.amount}}" } }, needsConfiguration: true }
+        },
+        {
+          id: "slack-new-customer",
+          type: "slack_action_send_message",
+          position: { x: 660, y: 180 },
+          data: { type: "slack_action_send_message", title: "New Customer Alert", config: { channel: "#sales", message: "New customer! {{stripe-trigger.customer_email}} - {{stripe-trigger.amount}}" }, needsConfiguration: true }
+        },
+        {
+          id: "slack-repeat",
+          type: "slack_action_send_message",
+          position: { x: 660, y: 360 },
+          data: { type: "slack_action_send_message", title: "Repeat Purchase", config: { channel: "#sales", message: "Repeat purchase from {{stripe-trigger.customer_email}} - {{stripe-trigger.amount}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "stripe-trigger", target: "hubspot-update" },
+        { id: "e2", source: "hubspot-update", target: "slack-new-customer" },
+        { id: "e3", source: "hubspot-update", target: "slack-repeat" }
+      ]
+    }
+  },
+  {
+    id: "ai-lead-scoring",
+    name: "AI Lead Scoring",
+    description: "When a new HubSpot contact is created, AI scores the lead 1-10, and high-scoring leads trigger a Slack alert and are logged to Google Sheets.",
+    category: "Sales & CRM",
+    tags: ["hubspot", "ai", "lead-scoring", "sales"],
+    integrations: ["hubspot", "google_sheets", "slack"],
+    difficulty: "advanced",
+    estimatedTime: "8 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "hubspot-trigger",
+          type: "hubspot_trigger_new_contact",
+          position: { x: 100, y: 260 },
+          data: { type: "hubspot_trigger_new_contact", title: "New Contact", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-score",
+          type: "ai_message",
+          position: { x: 380, y: 260 },
+          data: {
+            type: "ai_message", title: "Score Lead", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.2,
+              userPrompt: "Score this lead 1-10 based on: Email: {{hubspot-trigger.email}}, Company: {{hubspot-trigger.company}}, Job Title: {{hubspot-trigger.jobtitle}}. Consider company size signals, seniority, and domain quality.",
+              outputFields: "score | Lead score (1-10)\nreason | Scoring rationale"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "sheets-log",
+          type: "google_sheets_action_add_row",
+          position: { x: 660, y: 200 },
+          data: { type: "google_sheets_action_add_row", title: "Log Lead", config: { values: { "Email": "{{hubspot-trigger.email}}", "Company": "{{hubspot-trigger.company}}", "Score": "{{ai-score.score}}", "Reason": "{{ai-score.reason}}" } }, needsConfiguration: true }
+        },
+        {
+          id: "slack-hot-lead",
+          type: "slack_action_send_message",
+          position: { x: 660, y: 360 },
+          data: { type: "slack_action_send_message", title: "Hot Lead Alert", config: { channel: "#sales-hot-leads", message: "Hot lead (Score: {{ai-score.score}}/10): {{hubspot-trigger.email}} at {{hubspot-trigger.company}}. Reason: {{ai-score.reason}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "hubspot-trigger", target: "ai-score" },
+        { id: "e2", source: "ai-score", target: "sheets-log" },
+        { id: "e3", source: "ai-score", target: "slack-hot-lead" }
+      ]
+    }
+  },
+
+  // ============== ADDITIONAL CUSTOMER SERVICE TEMPLATES ==============
+
+  {
+    id: "ai-email-support-triage",
+    name: "AI Email Support Triage",
+    description: "Incoming support emails are classified by AI into bug, feature, support, sales, or general, then routed to the right Slack channel and logged in Airtable.",
+    category: "Customer Service",
+    tags: ["email", "ai-router", "support", "triage", "airtable"],
+    integrations: ["gmail", "slack", "airtable"],
+    difficulty: "advanced",
+    estimatedTime: "10 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "gmail-trigger",
+          type: "gmail_trigger_new_email",
+          position: { x: 100, y: 280 },
+          data: { type: "gmail_trigger_new_email", title: "Support Email", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-router-triage",
+          type: "ai_router",
+          position: { x: 380, y: 280 },
+          data: {
+            type: "ai_router", title: "Triage Email", config: {
+              template: "custom",
+              systemPrompt: "Classify this support email into: bug_report, feature_request, support_question, sales_inquiry, or general. Extract a brief summary.",
+              model: "gpt-4o-mini", apiSource: "chainreact", memory: "workflow",
+              outputPaths: [
+                { id: "bug", name: "Bug Report", description: "Software bugs", color: "#ef4444", condition: { type: "ai_decision", minConfidence: 0.6 } },
+                { id: "feature", name: "Feature Request", description: "Feature ideas", color: "#8b5cf6", condition: { type: "ai_decision", minConfidence: 0.6 } },
+                { id: "support", name: "Support", description: "Help needed", color: "#3b82f6", condition: { type: "ai_decision", minConfidence: 0.6 } },
+                { id: "sales", name: "Sales", description: "Sales inquiries", color: "#10b981", condition: { type: "ai_decision", minConfidence: 0.6 } },
+                { id: "general", name: "General", description: "Everything else", color: "#6b7280", condition: { type: "fallback" } }
+              ],
+              decisionMode: "single", includeReasoning: true, temperature: 0.2
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "slack-route",
+          type: "slack_action_send_message",
+          position: { x: 660, y: 200 },
+          data: { type: "slack_action_send_message", title: "Route to Slack", config: { message: "New {{ai-router-triage.selectedPath}} from {{gmail-trigger.from}}: {{gmail-trigger.subject}}" }, needsConfiguration: true }
+        },
+        {
+          id: "airtable-ticket",
+          type: "airtable_action_create_record",
+          position: { x: 660, y: 380 },
+          data: { type: "airtable_action_create_record", title: "Create Ticket", config: { fields: { "Subject": "{{gmail-trigger.subject}}", "From": "{{gmail-trigger.from}}", "Category": "{{ai-router-triage.selectedPath}}", "Date": "{{gmail-trigger.date}}" } }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "gmail-trigger", target: "ai-router-triage" },
+        { id: "e2", source: "ai-router-triage", target: "slack-route" },
+        { id: "e3", source: "ai-router-triage", target: "airtable-ticket" }
+      ]
+    }
+  },
+  {
+    id: "outlook-to-monday-tickets",
+    name: "Outlook to Monday.com Tickets",
+    description: "Support emails in Outlook are processed by AI to extract issue details, create Monday.com items, and send an auto-reply.",
+    category: "Customer Service",
+    tags: ["outlook", "monday", "support", "tickets"],
+    integrations: ["outlook", "monday"],
+    difficulty: "intermediate",
+    estimatedTime: "6 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "outlook-trigger",
+          type: "outlook_trigger_new_email",
+          position: { x: 100, y: 260 },
+          data: { type: "outlook_trigger_new_email", title: "Support Email", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-extract",
+          type: "ai_message",
+          position: { x: 380, y: 260 },
+          data: {
+            type: "ai_message", title: "Extract Issue", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.2,
+              userPrompt: "From this support email (Subject: {{outlook-trigger.subject}}, Body: {{outlook-trigger.body}}), extract: issue title, priority (Low/Medium/High/Critical), and a brief description.",
+              outputFields: "title | Issue title\npriority | Priority level\ndescription | Issue description"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "monday-item",
+          type: "monday_action_create_item",
+          position: { x: 660, y: 200 },
+          data: { type: "monday_action_create_item", title: "Create Ticket", config: { itemName: "[{{ai-extract.priority}}] {{ai-extract.title}}" }, needsConfiguration: true }
+        },
+        {
+          id: "outlook-reply",
+          type: "outlook_action_send_email",
+          position: { x: 660, y: 360 },
+          data: { type: "outlook_action_send_email", title: "Auto-Reply", config: { to: "{{outlook-trigger.from}}", subject: "Re: {{outlook-trigger.subject}}", body: "Thank you for contacting support. Your ticket has been created and our team will respond within 24 hours." }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "outlook-trigger", target: "ai-extract" },
+        { id: "e2", source: "ai-extract", target: "monday-item" },
+        { id: "e3", source: "ai-extract", target: "outlook-reply" }
+      ]
+    }
+  },
+  {
+    id: "discord-community-manager",
+    name: "Discord Community Manager",
+    description: "AI classifies Discord messages into questions, feedback, or spam, then responds appropriately and logs everything to Airtable.",
+    category: "Customer Service",
+    tags: ["discord", "ai-router", "community", "moderation"],
+    integrations: ["discord", "airtable"],
+    difficulty: "intermediate",
+    estimatedTime: "8 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "discord-trigger",
+          type: "discord_trigger_new_message",
+          position: { x: 100, y: 280 },
+          data: { type: "discord_trigger_new_message", title: "New Message", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-router-community",
+          type: "ai_router",
+          position: { x: 380, y: 280 },
+          data: {
+            type: "ai_router", title: "Classify Message", config: {
+              template: "custom",
+              systemPrompt: "Classify this Discord community message into: question (needs help), feedback (product ideas/suggestions), or spam (irrelevant/promotional). Provide a helpful auto-response for questions.",
+              model: "gpt-4o-mini", apiSource: "chainreact", memory: "workflow",
+              outputPaths: [
+                { id: "question", name: "Question", description: "Needs help", color: "#3b82f6", condition: { type: "ai_decision", minConfidence: 0.6 } },
+                { id: "feedback", name: "Feedback", description: "Product feedback", color: "#10b981", condition: { type: "ai_decision", minConfidence: 0.6 } },
+                { id: "spam", name: "Spam", description: "Irrelevant content", color: "#ef4444", condition: { type: "fallback" } }
+              ],
+              decisionMode: "single", includeReasoning: true, temperature: 0.3
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "discord-response",
+          type: "discord_action_send_message",
+          position: { x: 660, y: 200 },
+          data: { type: "discord_action_send_message", title: "Auto-Respond", config: { message: "{{ai-router-community.reasoning}}" }, needsConfiguration: true }
+        },
+        {
+          id: "airtable-log",
+          type: "airtable_action_create_record",
+          position: { x: 660, y: 380 },
+          data: { type: "airtable_action_create_record", title: "Log Message", config: { fields: { "Message": "{{discord-trigger.content}}", "Category": "{{ai-router-community.selectedPath}}", "Author": "{{discord-trigger.author}}", "Date": "{{discord-trigger.timestamp}}" } }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "discord-trigger", target: "ai-router-community" },
+        { id: "e2", source: "ai-router-community", target: "discord-response" },
+        { id: "e3", source: "ai-router-community", target: "airtable-log" }
+      ]
+    }
+  },
+
+  // ============== ADDITIONAL AI AUTOMATION TEMPLATES ==============
+
+  {
+    id: "smart-email-classifier",
+    name: "Smart Email Classifier & Responder",
+    description: "AI classifies incoming emails into urgent, important, FYI, or spam, drafts appropriate responses for each, and logs everything to Airtable.",
+    category: "AI Automation",
+    tags: ["email", "ai-router", "classifier", "automation"],
+    integrations: ["gmail", "airtable"],
+    difficulty: "advanced",
+    estimatedTime: "10 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "gmail-trigger",
+          type: "gmail_trigger_new_email",
+          position: { x: 100, y: 280 },
+          data: { type: "gmail_trigger_new_email", title: "Incoming Email", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-router-classify",
+          type: "ai_router",
+          position: { x: 380, y: 280 },
+          data: {
+            type: "ai_router", title: "Classify Email", config: {
+              template: "custom",
+              systemPrompt: "Classify this email into: urgent (needs immediate action), important (needs action today), fyi (informational only), or spam (promotional/irrelevant). Consider the sender, subject, and content.",
+              model: "gpt-4o-mini", apiSource: "chainreact", memory: "workflow",
+              outputPaths: [
+                { id: "urgent", name: "Urgent", description: "Needs immediate action", color: "#ef4444", condition: { type: "ai_decision", minConfidence: 0.6 } },
+                { id: "important", name: "Important", description: "Needs action today", color: "#f59e0b", condition: { type: "ai_decision", minConfidence: 0.6 } },
+                { id: "fyi", name: "FYI", description: "Informational only", color: "#3b82f6", condition: { type: "ai_decision", minConfidence: 0.6 } },
+                { id: "spam", name: "Spam", description: "Promotional/irrelevant", color: "#6b7280", condition: { type: "fallback" } }
+              ],
+              decisionMode: "single", includeReasoning: true, temperature: 0.2
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "ai-draft-response",
+          type: "ai_message",
+          position: { x: 660, y: 200 },
+          data: {
+            type: "ai_message", title: "Draft Response", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.4,
+              userPrompt: "Draft a brief, professional response to this email from {{gmail-trigger.from}} with subject '{{gmail-trigger.subject}}'. Category: {{ai-router-classify.selectedPath}}.",
+              outputFields: "response | Draft email response"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "airtable-log",
+          type: "airtable_action_create_record",
+          position: { x: 660, y: 380 },
+          data: { type: "airtable_action_create_record", title: "Log Email", config: { fields: { "Subject": "{{gmail-trigger.subject}}", "From": "{{gmail-trigger.from}}", "Category": "{{ai-router-classify.selectedPath}}", "Draft Response": "{{ai-draft-response.response}}" } }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "gmail-trigger", target: "ai-router-classify" },
+        { id: "e2", source: "ai-router-classify", target: "ai-draft-response" },
+        { id: "e3", source: "ai-router-classify", target: "airtable-log" }
+      ]
+    }
+  },
+  {
+    id: "ai-meeting-prep-assistant",
+    name: "AI Meeting Prep Assistant",
+    description: "Before a Google Calendar meeting, AI generates an agenda, talking points, and attendee research, then saves it to Notion and emails the organizer.",
+    category: "AI Automation",
+    tags: ["calendar", "ai", "meeting-prep", "notion", "gmail"],
+    integrations: ["google_calendar", "notion", "gmail"],
+    difficulty: "intermediate",
+    estimatedTime: "7 mins",
+    workflow_json: {
+      nodes: [
+        {
+          id: "calendar-trigger",
+          type: "google_calendar_trigger_event_start",
+          position: { x: 100, y: 260 },
+          data: { type: "google_calendar_trigger_event_start", title: "Upcoming Meeting", config: {}, isTrigger: true, needsConfiguration: true }
+        },
+        {
+          id: "ai-prep",
+          type: "ai_message",
+          position: { x: 380, y: 260 },
+          data: {
+            type: "ai_message", title: "Generate Prep", config: {
+              model: "gpt-4o-mini", apiSource: "chainreact", temperature: 0.5,
+              userPrompt: "Prepare briefing for meeting: {{calendar-trigger.summary}}. Attendees: {{calendar-trigger.attendees}}. Generate: 1) Meeting agenda (3-5 items), 2) Key talking points, 3) Suggested questions. Keep it concise and actionable.",
+              outputFields: "title | Prep document title\nagenda | Meeting agenda\ntalking_points | Key talking points\nquestions | Suggested questions\nemail_brief | Short email briefing"
+            }, needsConfiguration: false
+          }
+        },
+        {
+          id: "notion-prep",
+          type: "notion_action_create_page",
+          position: { x: 660, y: 200 },
+          data: { type: "notion_action_create_page", title: "Save to Notion", config: { title: "{{ai-prep.title}}", content: "## Agenda\n{{ai-prep.agenda}}\n\n## Talking Points\n{{ai-prep.talking_points}}\n\n## Questions\n{{ai-prep.questions}}" }, needsConfiguration: true }
+        },
+        {
+          id: "gmail-brief",
+          type: "gmail_action_send_email",
+          position: { x: 660, y: 360 },
+          data: { type: "gmail_action_send_email", title: "Email Brief", config: { subject: "Meeting Prep: {{calendar-trigger.summary}}", body: "{{ai-prep.email_brief}}" }, needsConfiguration: true }
+        }
+      ],
+      edges: [
+        { id: "e1", source: "calendar-trigger", target: "ai-prep" },
+        { id: "e2", source: "ai-prep", target: "notion-prep" },
+        { id: "e3", source: "ai-prep", target: "gmail-brief" }
       ]
     }
   }

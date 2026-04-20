@@ -253,7 +253,7 @@ export function IntegrationHealthDashboard({ className, compact = false }: Integ
             <Button
               variant="link"
               className="mt-2"
-              onClick={() => router.push('/apps')}
+              onClick={() => router.push('/connections')}
             >
               Connect your first app
               <ChevronRight className="w-4 h-4 ml-1" />
@@ -375,7 +375,7 @@ export function IntegrationHealthDashboard({ className, compact = false }: Integ
                   variant="ghost"
                   size="sm"
                   className="w-full text-xs"
-                  onClick={() => router.push('/apps')}
+                  onClick={() => router.push('/connections')}
                 >
                   View all {integrationIssues.length} issues
                 </Button>
@@ -741,7 +741,7 @@ export function IntegrationHealthDashboard({ className, compact = false }: Integ
                   variant="outline"
                   onClick={() => {
                     setDetailsOpen(false)
-                    router.push('/apps')
+                    router.push('/connections')
                   }}
                 >
                   <ExternalLink className="w-4 h-4 mr-2" />

@@ -97,7 +97,7 @@ export function AppsGridRenderer({ apps, maxDisplay = 4 }: AppsGridRendererProps
       {hasMore && (
         <div className="mt-4 text-center">
           <Link
-            href="/apps"
+            href="/connections"
             className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
           >
             <span>and many more on the apps page</span>

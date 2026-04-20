@@ -66,7 +66,27 @@ export async function checkUsageLimit(
     }
 
     const plan = subscription.plans
-    const limit = getPlanLimit(plan, resourceType)
+    let limit = getPlanLimit(plan, resourceType)
+
+    // 7-day trial: free plan users get Pro-level assistant access for first 7 days
+    if (resourceType === "ai_assistant" && plan.name === "free" && limit < 200) {
+      try {
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("created_at")
+          .eq("id", userId)
+          .single()
+
+        if (profile?.created_at) {
+          const daysSinceCreation = (Date.now() - new Date(profile.created_at).getTime()) / (1000 * 60 * 60 * 24)
+          if (daysSinceCreation <= 7) {
+            limit = 200 // Grant Pro-level access during trial
+          }
+        }
+      } catch {
+        // Fail open — don't block trial check
+      }
+    }
 
     if (limit === -1) {
       // Unlimited

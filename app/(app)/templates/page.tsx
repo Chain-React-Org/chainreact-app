@@ -1,4 +1,4 @@
-import { LibraryContent } from "@/components/new-design/LibraryContent"
+import { LibraryContent } from "@/components/templates/library/LibraryContent"
 import { PagePreloader } from "@/components/common/PagePreloader"
 
 export default function LibraryPage() {
