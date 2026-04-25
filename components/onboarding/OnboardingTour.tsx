@@ -183,6 +183,7 @@ export function OnboardingTour({ className }: OnboardingTourProps) {
               size="icon"
               className="h-6 w-6"
               onClick={handleSkip}
+              aria-label="Close onboarding tour"
             >
               <X className="w-4 h-4" />
             </Button>
