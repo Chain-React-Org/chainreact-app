@@ -54,7 +54,7 @@ export default function RequestIntegrationPage() {
       <nav className="relative z-40 px-4 sm:px-6 lg:px-8 py-6 bg-slate-900/50 backdrop-blur-lg border-b border-white/10">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link
-            href="/home"
+            href="/"
             className="flex items-center gap-2 text-white/80 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

@@ -253,7 +253,7 @@ export default function EmailConfirmPage() {
 
               <div className="mt-6 text-xs text-orange-300/60">
                 Need help getting started? Visit our{" "}
-                <Link href="/help" className="text-orange-300 hover:text-orange-200 underline">
+                <Link href="/support" className="text-orange-300 hover:text-orange-200 underline">
                   help center
                 </Link>
               </div>

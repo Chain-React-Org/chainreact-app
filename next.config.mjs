@@ -115,8 +115,8 @@ const nextConfig = {
               "form-action 'self'",
               // Script sources - 'unsafe-inline' needed for Next.js, 'unsafe-eval' needed for some libs
               // In production, consider using nonces instead
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://maps.googleapis.com https://www.googletagmanager.com https://apis.google.com https://www.gstatic.com",
-              "script-src-elem 'self' 'unsafe-inline' https://js.stripe.com https://maps.googleapis.com https://www.googletagmanager.com https://apis.google.com https://www.gstatic.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://maps.googleapis.com https://www.googletagmanager.com https://apis.google.com https://www.gstatic.com https://static.cloudflareinsights.com",
+              "script-src-elem 'self' 'unsafe-inline' https://js.stripe.com https://maps.googleapis.com https://www.googletagmanager.com https://apis.google.com https://www.gstatic.com https://static.cloudflareinsights.com",
               // Style sources
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               // Font sources
