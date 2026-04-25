@@ -36,7 +36,7 @@ function SSOErrorContent() {
 
           <div className="flex flex-col gap-2">
             <Button asChild variant="default" className="w-full">
-              <Link href="/login">
+              <Link href="/auth/login">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Login
               </Link>
