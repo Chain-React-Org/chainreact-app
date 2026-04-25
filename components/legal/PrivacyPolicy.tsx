@@ -16,7 +16,7 @@ export function PrivacyPolicy() {
           <section className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">1. Introduction</h2>
             <p className="text-gray-600 mb-4">
-              Welcome to ChainReact (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;). We are committed to protecting your privacy and ensuring the
+              Welcome to ChainReact (“we,” “our,” or “us”). We are committed to protecting your privacy and ensuring the
               security of your personal information. This Privacy Policy explains how we collect, use, disclose, and
               safeguard your information when you use our workflow automation platform and services.
             </p>
@@ -175,7 +175,7 @@ export function PrivacyPolicy() {
           </section>
 
           <section className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">10. Children&apos;s Privacy</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">10. Children’s Privacy</h2>
             <p className="text-gray-600">
               Our services are not intended for children under 13 years of age. We do not knowingly collect personal
               information from children under 13. If you become aware that a child has provided us with personal
@@ -187,7 +187,7 @@ export function PrivacyPolicy() {
             <h2 className="text-xl font-semibold text-gray-900 mb-4">11. Changes to This Privacy Policy</h2>
             <p className="text-gray-600">
               We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new
-              Privacy Policy on this page and updating the &ldquo;Last updated&rdquo; date. We encourage you to review this Privacy
+              Privacy Policy on this page and updating the “Last updated” date. We encourage you to review this Privacy
               Policy periodically.
             </p>
           </section>

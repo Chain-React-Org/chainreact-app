@@ -16,8 +16,8 @@ export function TermsOfService() {
           <section className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">1. Acceptance of Terms</h2>
             <p className="text-gray-600 mb-4">
-              Welcome to ChainReact. These Terms of Service (&ldquo;Terms&rdquo;) govern your use of the ChainReact platform and
-              services (&ldquo;Service&rdquo;) operated by ChainReact, Inc. (&ldquo;us&rdquo;, &ldquo;we&rdquo;, or &ldquo;our&rdquo;).
+              Welcome to ChainReact. These Terms of Service (“Terms”) govern your use of the ChainReact platform and
+              services (“Service”) operated by ChainReact, Inc. (“us”, “we”, or “our”).
             </p>
             <p className="text-gray-600">
               By accessing or using our Service, you agree to be bound by these Terms. If you disagree with any part of
@@ -171,7 +171,7 @@ export function TermsOfService() {
             <h3 className="text-lg font-semibold text-gray-900 mb-3">10.1 Service Availability</h3>
             <p className="text-gray-600 mb-4">
               We strive to maintain high availability but cannot guarantee that the Service will be available 100% of
-              the time. The Service is provided &ldquo;as is&rdquo; without warranties of any kind.
+              the time. The Service is provided “as is” without warranties of any kind.
             </p>
 
             <h3 className="text-lg font-semibold text-gray-900 mb-3">10.2 Limitation of Liability</h3>
@@ -222,7 +222,7 @@ export function TermsOfService() {
             <h2 className="text-xl font-semibold text-gray-900 mb-4">14. Changes to Terms</h2>
             <p className="text-gray-600">
               We reserve the right to modify these Terms at any time. We will notify you of any changes by posting the
-              new Terms on this page and updating the &ldquo;Last updated&rdquo; date. Your continued use of the Service after such
+              new Terms on this page and updating the “Last updated” date. Your continued use of the Service after such
               changes constitutes acceptance of the new Terms.
             </p>
           </section>
