@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -13,6 +14,14 @@ interface PublicPageHeaderProps {
 export function PublicPageHeader({ breadcrumb }: PublicPageHeaderProps) {
   const router = useRouter()
   const { user } = useAuthStore()
+  // Auth state hydrates from localStorage on the client only; defer rendering of
+  // user-dependent text until after mount to avoid a hydration mismatch (React #418).
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const isAuthed = mounted && !!user
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
@@ -26,10 +35,10 @@ export function PublicPageHeader({ breadcrumb }: PublicPageHeaderProps) {
           <span className="text-sm text-gray-500">{breadcrumb}</span>
         </div>
         <button
-          onClick={() => router.push(user ? "/workflows" : "/auth/register")}
+          onClick={() => router.push(isAuthed ? "/workflows" : "/auth/register")}
           className="inline-flex items-center gap-1.5 text-xs font-medium h-8 px-4 rounded-md bg-orange-600 text-white hover:bg-orange-700 transition-colors"
         >
-          {user ? "Go to Dashboard" : "Get Started"}
+          {isAuthed ? "Go to Dashboard" : "Get Started"}
           <ArrowRight className="w-3 h-3" />
         </button>
       </div>

@@ -18,12 +18,18 @@ export function TempHeader() {
   const { user } = useAuthStore()
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [scrolled, setScrolled] = React.useState(false)
+  // Defer auth-dependent CTA text until after mount so SSR ("Get started free")
+  // matches initial client render before localStorage hydrates the auth store.
+  const [mounted, setMounted] = React.useState(false)
 
   React.useEffect(() => {
+    setMounted(true)
     const handleScroll = () => setScrolled(window.scrollY > 20)
     window.addEventListener("scroll", handleScroll, { passive: true })
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
+
+  const isAuthed = mounted && !!user
 
   return (
     <header
@@ -65,7 +71,7 @@ export function TempHeader() {
 
         {/* Desktop CTA */}
         <div className="hidden md:flex items-center gap-3">
-          {user ? (
+          {isAuthed ? (
             <button
               onClick={() => router.push("/workflows")}
               className="inline-flex items-center gap-1.5 text-[13px] font-medium h-8 px-4 rounded-md bg-white text-slate-900 hover:bg-slate-100 transition-colors"
@@ -117,11 +123,11 @@ export function TempHeader() {
             ))}
             <div className="pt-2 border-t border-slate-800 mt-2">
               <Link
-                href={user ? "/workflows" : "/auth/register"}
+                href={isAuthed ? "/workflows" : "/auth/register"}
                 onClick={() => setMenuOpen(false)}
                 className="block w-full text-center bg-white text-slate-900 text-sm font-medium py-2.5 rounded-md hover:bg-slate-100 transition-colors"
               >
-                {user ? "Dashboard" : "Get started free"}
+                {isAuthed ? "Dashboard" : "Get started free"}
               </Link>
             </div>
           </div>
