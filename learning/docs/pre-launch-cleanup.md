@@ -56,6 +56,18 @@
 | Why deferred | Audit captured decisions; PR-G applies them after the contract refactors (C1–C5/D/E/F) land. |
 | Pre-launch action | Ship PR-G to apply all `Require` and `Change` decisions before launch. |
 
+### A6. Q8c per-handler cost-check — deferred (relies on workflow-level deduction)
+
+| Field | Value |
+|---|---|
+| Status | OPEN |
+| What | The Q8 contract calls for a per-handler cost-check helper (Q8c) that billing-impacting handlers (Stripe, paid AI) call before firing. PR-D ships Q8a / Q8b / Q8d in the safety-floor helper but does NOT add a per-handler cost shim. |
+| Why deferred | ChainReact already deducts tasks at the workflow layer (`lib/workflows/taskDeduction.ts` → `deductTasksAtomic`) before any handler fires. The deduction is fail-closed on `insufficient_balance`, `subscription_inactive`, and `billing_unavailable`. Adding a per-handler duplicate would not catch a case the upstream check misses, and would add a redundant DB roundtrip per billing-impacting handler invocation. |
+| Pre-launch action | Decide between (a) keep workflow-level deduction as the sole Q8c safeguard and update the contract to reflect that, or (b) add a thin `assertSufficientTaskBudget(userId, requiredTasks)` helper wired into the 4 Stripe handlers + paid AI handlers, with the helper today re-using the existing balance lookup. The `safetyFloors.runSafetyFloorChecks` helper already accepts an `isBillingImpacting` flag for forward compatibility — wire-up only, no contract change needed. |
+| Tracking | [`learning/docs/handler-contracts.md`](handler-contracts.md) Q8c, [`__tests__/helpers/safetyFloors.ts`](../../__tests__/helpers/safetyFloors.ts) (header comment) |
+
+---
+
 ### A5. Auxiliary provider calls not covered by `refreshAndRetry`
 
 | Field | Value |

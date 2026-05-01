@@ -437,6 +437,15 @@ export async function createAirtableRecord(
   input: Record<string, any>,
   meta?: HandlerExecutionMeta,
 ): Promise<ActionResult> {
+  // Q8d — testMode interception.
+  if (meta?.testMode) {
+    return {
+      success: true,
+      output: { simulated: true, provider: 'airtable' },
+      message: 'Simulated in test mode — no provider call made',
+    }
+  }
+
   const cleanupPaths: string[] = []
   let recordCreated = false
 

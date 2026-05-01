@@ -21,6 +21,7 @@ import {
   setSessionReplayOutcome,
   getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
+import { runSafetyFloorChecks } from "../helpers/safetyFloors"
 
 import { createShopifyCustomer } from "@/lib/workflows/actions/shopify/createCustomer"
 
@@ -370,5 +371,30 @@ describe("createShopifyCustomer — Q4 — idempotency within session", () => {
       executionSessionId: "session-2",
     })
     expect(getFetchCalls()).toHaveLength(1)
+  })
+})
+
+// Q8 — safety floors. See learning/docs/handler-contracts.md.
+describe("createShopifyCustomer — Q8 — safety floors", () => {
+  runSafetyFloorChecks({
+    handlerKind: "positional",
+    handler: createShopifyCustomer as any,
+    baseConfig: {
+      integration_id: "integration-1",
+      email: "alice@example.com",
+      first_name: "Alice",
+    },
+    knownSecrets: ["mock-token-12345"],
+    knownPii: ["alice@example.com"],
+    primeOutboundMocks: () => {
+      fetchMock.mockResponseOnce(JSON.stringify(SUCCESSFUL_GQL_RESPONSE))
+    },
+    resetOutboundMocks: () => {
+      fetchMock.resetMocks()
+    },
+    assertNoOutboundCalls: () => {
+      expect(getFetchCalls()).toHaveLength(0)
+    },
+    expectedProvider: "shopify",
   })
 })

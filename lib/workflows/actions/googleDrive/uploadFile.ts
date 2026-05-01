@@ -23,11 +23,22 @@ export async function uploadGoogleDriveFile(
   input: Record<string, any>,
   meta?: HandlerExecutionMeta,
 ): Promise<ActionResult> {
-  logger.info('🚀 [uploadGoogleDriveFile] Starting with config:', {
+  // Q8b — config may contain customer PII (shareWith emails, etc.), so
+  // this dump is debug-only.
+  logger.debug('🚀 [uploadGoogleDriveFile] Starting with config:', {
     config,
     userId,
     hasInput: !!input
   });
+
+  // Q8d — testMode interception.
+  if (meta?.testMode) {
+    return {
+      success: true,
+      output: { simulated: true, provider: 'google-drive' },
+      message: 'Simulated in test mode — no provider call made',
+    }
+  }
 
   const cleanupPaths = new Set<string>()
 

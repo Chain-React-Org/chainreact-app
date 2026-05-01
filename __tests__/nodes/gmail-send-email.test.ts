@@ -21,6 +21,7 @@ import {
   setSessionReplayOutcome,
   getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
+import { runSafetyFloorChecks } from "../helpers/safetyFloors"
 
 import { sendGmailEmail } from "@/lib/workflows/actions/gmail/sendEmail"
 
@@ -485,5 +486,33 @@ describe("sendGmailEmail — Q4 — idempotency within session", () => {
     })
 
     expect(getSessionRecordCalls()).toHaveLength(0)
+  })
+})
+
+// Q8 — safety floors. See learning/docs/handler-contracts.md.
+describe("sendGmailEmail — Q8 — safety floors", () => {
+  runSafetyFloorChecks({
+    handlerKind: "object",
+    handler: sendGmailEmail as any,
+    baseConfig: {
+      to: "alice@example.com",
+      subject: "Hello Alice",
+      body: "Body",
+    },
+    baseInput: {},
+    knownSecrets: ["mock-token-12345"],
+    knownPii: ["alice@example.com"],
+    primeOutboundMocks: () => {
+      mockGmailApi.users.messages.send.mockResolvedValue({
+        data: { id: "msg-q8", threadId: "thr" },
+      })
+    },
+    resetOutboundMocks: () => {
+      mockGmailApi.users.messages.send.mockClear()
+    },
+    assertNoOutboundCalls: () => {
+      expect(mockGmailApi.users.messages.send).not.toHaveBeenCalled()
+    },
+    expectedProvider: "gmail",
   })
 })

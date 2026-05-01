@@ -27,6 +27,17 @@ export async function sendGmailEmail(
   const { config, userId, input, meta } = params
   const cleanupPaths = new Set<string>()
 
+  // Q8d — testMode interception. When the engine signals testMode, the
+  // handler must NOT contact the provider; return a deterministic
+  // simulated ActionResult so downstream nodes see a consistent shape.
+  if (meta?.testMode) {
+    return {
+      success: true,
+      output: { simulated: true, provider: 'gmail' },
+      message: 'Simulated in test mode — no provider call made',
+    }
+  }
+
   try {
     logger.debug('📧 [sendGmailEmail] Processing email', { fieldCount: Object.keys(config).length })
     logger.debug('📧 [sendGmailEmail] Input keys:', Object.keys(input || {}))

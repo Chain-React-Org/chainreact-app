@@ -23,6 +23,15 @@ export async function sendOutlookEmail(
 ): Promise<ActionResult> {
   const cleanupPaths = new Set<string>()
 
+  // Q8d — testMode interception (see learning/docs/handler-contracts.md).
+  if (meta?.testMode) {
+    return {
+      success: true,
+      output: { simulated: true, provider: 'microsoft-outlook' },
+      message: 'Simulated in test mode — no provider call made',
+    }
+  }
+
   try {
     // Resolve config values if they contain template variables
     const needsResolution = typeof config === 'object' &&

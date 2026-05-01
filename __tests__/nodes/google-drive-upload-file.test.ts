@@ -20,6 +20,7 @@ import {
   setSessionReplayOutcome,
   getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
+import { runSafetyFloorChecks } from "../helpers/safetyFloors"
 
 import { uploadGoogleDriveFile } from "@/lib/workflows/actions/googleDrive/uploadFile"
 
@@ -367,5 +368,33 @@ describe("uploadGoogleDriveFile — Q4 — idempotency within session", () => {
       executionSessionId: "session-2",
     })
     expect(mockDriveApi.files.create).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Q8 — safety floors. See learning/docs/handler-contracts.md.
+describe("uploadGoogleDriveFile — Q8 — safety floors", () => {
+  runSafetyFloorChecks({
+    handlerKind: "positional",
+    handler: uploadGoogleDriveFile as any,
+    baseConfig: {
+      sourceType: "node",
+      fileFromNode: makeInlineFile("hi", "doc.txt", "text/plain"),
+      shareWith: ["alice@example.com"],
+    },
+    knownSecrets: ["mock-token-12345"],
+    knownPii: ["alice@example.com"],
+    primeOutboundMocks: () => {
+      mockDriveApi.files.create.mockResolvedValue({ data: { id: "f1" } })
+      mockDriveApi.permissions.create.mockResolvedValue({ data: { id: "p" } })
+    },
+    resetOutboundMocks: () => {
+      mockDriveApi.files.create.mockClear()
+      mockDriveApi.permissions.create.mockClear()
+    },
+    assertNoOutboundCalls: () => {
+      expect(mockDriveApi.files.create).not.toHaveBeenCalled()
+      expect(mockDriveApi.permissions.create).not.toHaveBeenCalled()
+    },
+    expectedProvider: "google-drive",
   })
 })

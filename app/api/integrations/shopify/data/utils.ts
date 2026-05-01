@@ -78,7 +78,9 @@ export async function makeShopifyGraphQLRequest(
 
   const url = `https://${shopDomain}/admin/api/2024-10/graphql.json`
 
-  logger.info('[Shopify GraphQL] Making request:', {
+  // Q8b — `variables` may contain customer PII (emails, names, addresses);
+  // debug-only.
+  logger.debug('[Shopify GraphQL] Making request:', {
     url,
     query: query.substring(0, 100) + '...',
     variables

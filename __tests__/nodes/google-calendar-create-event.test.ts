@@ -23,6 +23,7 @@ import {
   setSessionReplayOutcome,
   getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
+import { runSafetyFloorChecks } from "../helpers/safetyFloors"
 
 import { createGoogleCalendarEvent } from "@/lib/workflows/actions/google-calendar/createEvent"
 
@@ -460,5 +461,33 @@ describe("createGoogleCalendarEvent — Q4 — idempotency within session", () =
       executionSessionId: "session-2",
     })
     expect(mockCalendarApi.events.insert).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Q8 — safety floors. See learning/docs/handler-contracts.md.
+describe("createGoogleCalendarEvent — Q8 — safety floors", () => {
+  runSafetyFloorChecks({
+    handlerKind: "positional",
+    handler: createGoogleCalendarEvent as any,
+    baseConfig: {
+      title: "Sync",
+      startDate: "2026-05-10",
+      startTime: "09:00",
+      attendees: ["alice@example.com"],
+    },
+    knownSecrets: ["mock-token-12345"],
+    knownPii: ["alice@example.com"],
+    primeOutboundMocks: () => {
+      mockCalendarApi.events.insert.mockResolvedValue({
+        data: { id: "evt-q8" },
+      })
+    },
+    resetOutboundMocks: () => {
+      mockCalendarApi.events.insert.mockClear()
+    },
+    assertNoOutboundCalls: () => {
+      expect(mockCalendarApi.events.insert).not.toHaveBeenCalled()
+    },
+    expectedProvider: "google-calendar",
   })
 })

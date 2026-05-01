@@ -19,6 +19,18 @@ export async function stripeCreatePaymentIntent(
   config: any,
   context: ExecutionContext
 ): Promise<ActionResult> {
+  // Q8d — testMode interception. Stripe is the highest-stakes handler;
+  // a testMode that ever reaches Stripe in real life would charge
+  // customers. Belt-and-suspenders gate even though the engine should
+  // already short-circuit testMode upstream.
+  if ((context as any).testMode) {
+    return {
+      success: true,
+      output: { simulated: true, provider: 'stripe' },
+      message: 'Simulated in test mode — no provider call made',
+    }
+  }
+
   try {
     const accessToken = await getDecryptedAccessToken(context.userId, "stripe")
 

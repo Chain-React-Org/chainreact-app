@@ -19,6 +19,15 @@ export async function createGoogleCalendarEvent(
   input: Record<string, any>,
   meta?: HandlerExecutionMeta,
 ): Promise<ActionResult> {
+  // Q8d — testMode interception.
+  if (meta?.testMode) {
+    return {
+      success: true,
+      output: { simulated: true, provider: 'google-calendar' },
+      message: 'Simulated in test mode — no provider call made',
+    }
+  }
+
   try {
     // Resolve config values if they contain template variables
     const needsResolution = typeof config === 'object' &&
@@ -276,8 +285,10 @@ export async function createGoogleCalendarEvent(
       sendUpdates = 'externalOnly'
     }
 
-    // Log the event data being sent for debugging
-    logger.info('📤 [Google Calendar] Event data being sent:', {
+    // Q8b — eventData contains attendee emails (customer PII), so this
+    // log line is debug-only. Use debug for diagnostic-rich output;
+    // info / warn / error must NOT carry PII.
+    logger.debug('📤 [Google Calendar] Event data being sent:', {
       allDay,
       eventData: JSON.stringify(eventData, null, 2)
     })

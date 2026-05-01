@@ -19,6 +19,16 @@ export async function stripeCreateSubscription(
   config: any,
   context: ExecutionContext
 ): Promise<ActionResult> {
+  // Q8d — testMode interception (defense in depth — a Stripe charge that
+  // bypasses upstream test gates would charge real customers).
+  if ((context as any).testMode) {
+    return {
+      success: true,
+      output: { simulated: true, provider: 'stripe' },
+      message: 'Simulated in test mode — no provider call made',
+    }
+  }
+
   try {
     const accessToken = await getDecryptedAccessToken(context.userId, "stripe")
 

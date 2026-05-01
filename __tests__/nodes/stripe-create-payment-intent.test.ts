@@ -24,6 +24,7 @@ import {
   setSessionReplayOutcome,
   getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
+import { runSafetyFloorChecks } from "../helpers/safetyFloors"
 
 import { stripeCreatePaymentIntent } from "@/lib/workflows/actions/stripe/createPaymentIntent"
 
@@ -186,5 +187,27 @@ describe("stripeCreatePaymentIntent — provider API error", () => {
     )
     expect(result.success).toBe(false)
     expect(result.message).toMatch(/stripe api error|400/i)
+  })
+})
+
+// Q8 — safety floors. See learning/docs/handler-contracts.md.
+describe("stripeCreatePaymentIntent — Q8 — safety floors", () => {
+  runSafetyFloorChecks({
+    handlerKind: "context",
+    handler: stripeCreatePaymentIntent as any,
+    baseConfig: { amount: "20.99", currency: "USD" },
+    knownSecrets: ["mock-token-12345"],
+    knownPii: ["alice@example.com"],
+    isBillingImpacting: true,
+    primeOutboundMocks: () => {
+      fetchMock.mockResponseOnce(JSON.stringify(SAMPLE_RESPONSE))
+    },
+    resetOutboundMocks: () => {
+      fetchMock.resetMocks()
+    },
+    assertNoOutboundCalls: () => {
+      expect(getFetchCalls()).toHaveLength(0)
+    },
+    expectedProvider: "stripe",
   })
 })

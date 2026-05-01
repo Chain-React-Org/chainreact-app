@@ -28,6 +28,15 @@ export async function createShopifyCustomer(
   input: Record<string, any>,
   meta?: HandlerExecutionMeta,
 ): Promise<ActionResult> {
+  // Q8d — testMode interception.
+  if (meta?.testMode) {
+    return {
+      success: true,
+      output: { simulated: true, provider: 'shopify' },
+      message: 'Simulated in test mode — no provider call made',
+    }
+  }
+
   try {
     // 1. Get and validate integration
     const integrationId = await resolveValue(config.integration_id || config.integrationId, input)
@@ -43,7 +52,8 @@ export async function createShopifyCustomer(
     const tags = config.tags ? await resolveValue(config.tags, input) : undefined
     const sendWelcomeEmail = config.send_welcome_email ?? false
 
-    logger.info('[Shopify GraphQL] Creating customer:', { email, selectedStore })
+    // Q8b — email is customer PII; debug-only.
+    logger.debug('[Shopify GraphQL] Creating customer:', { email, selectedStore })
 
     // 3. Build GraphQL mutation
     const mutation = `

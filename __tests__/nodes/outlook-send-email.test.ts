@@ -25,6 +25,7 @@ import {
   setSessionReplayOutcome,
   getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
+import { runSafetyFloorChecks } from "../helpers/safetyFloors"
 
 import { sendOutlookEmail } from "@/lib/workflows/actions/microsoft-outlook/sendEmail"
 
@@ -495,5 +496,32 @@ describe("sendOutlookEmail — Q4 — idempotency within session", () => {
     expect(
       getFetchCalls().some((c) => c.url.includes("/me/sendMail")),
     ).toBe(true)
+  })
+})
+
+// Q8 — safety floors. See learning/docs/handler-contracts.md.
+describe("sendOutlookEmail — Q8 — safety floors", () => {
+  runSafetyFloorChecks({
+    handlerKind: "positional",
+    handler: sendOutlookEmail as any,
+    baseConfig: {
+      to: "alice@example.com",
+      subject: "Hello",
+      body: "Body",
+    },
+    knownSecrets: ["mock-token-12345"],
+    knownPii: ["alice@example.com"],
+    primeOutboundMocks: () => {
+      fetchMock
+        .mockResponseOnce("", { status: 202 })
+        .mockResponseOnce(JSON.stringify({ value: [{ id: "m1" }] }))
+    },
+    resetOutboundMocks: () => {
+      fetchMock.resetMocks()
+    },
+    assertNoOutboundCalls: () => {
+      expect(getFetchCalls().filter((c) => c.url.includes("/sendMail"))).toHaveLength(0)
+    },
+    expectedProvider: "microsoft-outlook",
   })
 })

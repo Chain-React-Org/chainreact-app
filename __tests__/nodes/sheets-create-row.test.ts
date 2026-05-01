@@ -22,6 +22,7 @@ import {
   setSessionReplayOutcome,
   getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
+import { runSafetyFloorChecks } from "../helpers/safetyFloors"
 
 import { createGoogleSheetsRow } from "@/lib/workflows/actions/google-sheets/createRow"
 
@@ -412,5 +413,35 @@ describe("createGoogleSheetsRow — Q4 — idempotency within session", () => {
       (c) => c.method === "POST" || c.method === "PUT",
     )
     expect(writeCalls.length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+// Q8 — safety floors. See learning/docs/handler-contracts.md.
+describe("createGoogleSheetsRow — Q8 — safety floors", () => {
+  runSafetyFloorChecks({
+    handlerKind: "positional",
+    handler: createGoogleSheetsRow as any,
+    baseConfig: {
+      spreadsheetId: "ss-1",
+      sheetName: "Sheet1",
+      values: ["alice@example.com", "Alice"],
+    },
+    knownSecrets: ["mock-token-12345"],
+    knownPii: ["alice@example.com"],
+    primeOutboundMocks: () => {
+      fetchMock
+        .mockResponseOnce(JSON.stringify({ values: [["Email", "Name"]] }))
+        .mockResponseOnce(JSON.stringify({ updates: { updatedRows: 1 } }))
+    },
+    resetOutboundMocks: () => {
+      fetchMock.resetMocks()
+    },
+    assertNoOutboundCalls: () => {
+      const writes = getFetchCalls().filter(
+        (c) => c.method === "POST" || c.method === "PUT",
+      )
+      expect(writes).toHaveLength(0)
+    },
+    expectedProvider: "google-sheets",
   })
 })

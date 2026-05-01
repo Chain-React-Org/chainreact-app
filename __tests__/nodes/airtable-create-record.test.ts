@@ -22,6 +22,7 @@ import {
   setSessionReplayOutcome,
   getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
+import { runSafetyFloorChecks } from "../helpers/safetyFloors"
 
 import { createAirtableRecord } from "@/lib/workflows/actions/airtable/createRecord"
 
@@ -416,5 +417,45 @@ describe("createAirtableRecord — Q4 — idempotency within session", () => {
     })
     const writes = getFetchCalls().filter((c) => c.method === "POST")
     expect(writes).toHaveLength(1)
+  })
+})
+
+// Q8 — safety floors. See learning/docs/handler-contracts.md.
+describe("createAirtableRecord — Q8 — safety floors", () => {
+  runSafetyFloorChecks({
+    handlerKind: "positional",
+    handler: createAirtableRecord as any,
+    baseConfig: {
+      baseId: "app1",
+      tableName: "Tasks",
+      airtable_field_Name: "Alice",
+      airtable_field_Email: "alice@example.com",
+    },
+    knownSecrets: ["mock-token-12345"],
+    knownPii: ["alice@example.com"],
+    primeOutboundMocks: () => {
+      // Schema GETs + record POST.
+      fetchMock.mockResponse(async (req: any) => {
+        if (req.method === "POST") {
+          return {
+            body: JSON.stringify({
+              id: "rec-q8",
+              fields: { Name: "Alice" },
+              createdTime: "2026-04-30T10:00:00Z",
+            }),
+            status: 200,
+          }
+        }
+        return { body: JSON.stringify(SCHEMA_RESPONSE), status: 200 }
+      })
+    },
+    resetOutboundMocks: () => {
+      fetchMock.resetMocks()
+    },
+    assertNoOutboundCalls: () => {
+      const writes = getFetchCalls().filter((c) => c.method === "POST")
+      expect(writes).toHaveLength(0)
+    },
+    expectedProvider: "airtable",
   })
 })

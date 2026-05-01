@@ -22,6 +22,17 @@ export async function stripeCreateRefund(
   config: any,
   context: ExecutionContext
 ): Promise<ActionResult> {
+  // Q8d — testMode interception. Refunds are particularly dangerous in
+  // testMode — a real refund issued from a "test" session double-credits
+  // the customer.
+  if ((context as any).testMode) {
+    return {
+      success: true,
+      output: { simulated: true, provider: 'stripe' },
+      message: 'Simulated in test mode — no provider call made',
+    }
+  }
+
   try {
     const accessToken = await getDecryptedAccessToken(context.userId, "stripe")
 

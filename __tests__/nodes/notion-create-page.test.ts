@@ -25,6 +25,7 @@ import {
   setSessionReplayOutcome,
   getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
+import { runSafetyFloorChecks } from "../helpers/safetyFloors"
 
 import { executeNotionCreatePage } from "@/lib/workflows/actions/notion/pageActions"
 
@@ -344,5 +345,30 @@ describe("executeNotionCreatePage — Q4 — idempotency within session", () => 
       executionSessionId: "session-2",
     })
     expect(getFetchCalls()).toHaveLength(1)
+  })
+})
+
+// Q8 — safety floors. See learning/docs/handler-contracts.md.
+describe("executeNotionCreatePage — Q8 — safety floors", () => {
+  runSafetyFloorChecks({
+    handlerKind: "positional",
+    handler: executeNotionCreatePage as any,
+    baseConfig: {
+      parentType: "database",
+      parentDatabase: "db-1",
+      title: "Page about alice@example.com",
+    },
+    knownSecrets: ["mock-token-12345"],
+    knownPii: ["alice@example.com"],
+    primeOutboundMocks: () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ id: "p1", url: "u" }))
+    },
+    resetOutboundMocks: () => {
+      fetchMock.resetMocks()
+    },
+    assertNoOutboundCalls: () => {
+      expect(getFetchCalls()).toHaveLength(0)
+    },
+    expectedProvider: "notion",
   })
 })

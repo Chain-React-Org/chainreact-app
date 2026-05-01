@@ -293,6 +293,15 @@ export async function notionCreatePage(
   context: ExecutionContext,
   meta?: import('../core/idempotencyKey').HandlerExecutionMeta,
 ): Promise<ActionResult> {
+  // Q8d — testMode interception (see learning/docs/handler-contracts.md).
+  if (meta?.testMode) {
+    return {
+      success: true,
+      output: { simulated: true, provider: 'notion' },
+      message: 'Simulated in test mode — no provider call made',
+    }
+  }
+
   try {
     const accessToken = await getDecryptedAccessToken(context.userId, "notion")
     

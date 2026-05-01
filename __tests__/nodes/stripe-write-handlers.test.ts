@@ -31,6 +31,7 @@ import {
   setSessionReplayOutcome,
   getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
+import { runSafetyFloorChecks } from "../helpers/safetyFloors"
 
 import { stripeCreateSubscription } from "@/lib/workflows/actions/stripe/createSubscription"
 import { stripeCreateCheckoutSession } from "@/lib/workflows/actions/stripe/createCheckoutSession"
@@ -298,5 +299,114 @@ describe("stripeCreateRefund — Q4 — idempotency within session", () => {
     expect(calls[0].headers["idempotency-key"]).toBe(
       "session-2:node-A:stripe_action_create_refund",
     )
+  })
+})
+
+// ─── Q8 — safety floors ────────────────────────────────────────────────
+//
+// Each Stripe write handler gets the full Q8 panel. See
+// learning/docs/handler-contracts.md.
+
+describe("stripeCreateSubscription — Q8 — safety floors", () => {
+  const SAMPLE = {
+    id: "sub_q8",
+    customer: "cus_1",
+    status: "active",
+    items: { data: [{ price: { id: "price_1" }, quantity: 1 }] },
+    created: 1714478400,
+    metadata: {},
+  }
+  runSafetyFloorChecks({
+    handlerKind: "context",
+    handler: stripeCreateSubscription as any,
+    baseConfig: { customerId: "cus_1", priceId: "price_1" },
+    knownSecrets: ["mock-token-12345"],
+    knownPii: ["alice@example.com"],
+    isBillingImpacting: true,
+    primeOutboundMocks: () => {
+      fetchMock.mockResponseOnce(JSON.stringify(SAMPLE))
+    },
+    resetOutboundMocks: () => {
+      fetchMock.resetMocks()
+    },
+    assertNoOutboundCalls: () => {
+      expect(getFetchCalls()).toHaveLength(0)
+    },
+    expectedProvider: "stripe",
+  })
+})
+
+describe("stripeCreateCheckoutSession — Q8 — safety floors", () => {
+  runSafetyFloorChecks({
+    handlerKind: "context",
+    handler: stripeCreateCheckoutSession as any,
+    baseConfig: {
+      priceId: "price_1",
+      quantity: "1",
+      success_url: "https://x.com/ok",
+      cancel_url: "https://x.com/no",
+    },
+    knownSecrets: ["mock-token-12345"],
+    knownPii: ["alice@example.com"],
+    isBillingImpacting: true,
+    primeOutboundMocks: () => {
+      // Pre-flight price GET (recurring detection) + the session POST.
+      fetchMock
+        .mockResponseOnce(JSON.stringify({ id: "price_1", type: "one_time" }))
+        .mockResponseOnce(JSON.stringify({
+          id: "cs_q8",
+          url: "https://checkout.stripe.com/c/pay/cs_q8",
+          customer: null,
+          payment_intent: null,
+          subscription: null,
+          amount_total: 0,
+          currency: "usd",
+          payment_status: "unpaid",
+          status: "open",
+          expires_at: 1714478400,
+          metadata: {},
+        }))
+    },
+    resetOutboundMocks: () => {
+      fetchMock.resetMocks()
+    },
+    assertNoOutboundCalls: () => {
+      const writes = getFetchCalls().filter((c) => c.method === "POST")
+      expect(writes).toHaveLength(0)
+    },
+    expectedProvider: "stripe",
+  })
+})
+
+describe("stripeCreateRefund — Q8 — safety floors", () => {
+  const SAMPLE = {
+    id: "re_q8",
+    amount: 1000,
+    currency: "usd",
+    status: "succeeded",
+    charge: "ch_1",
+    payment_intent: "pi_1",
+    reason: null,
+    receipt_number: null,
+    created: 1714478400,
+    metadata: {},
+  }
+  runSafetyFloorChecks({
+    handlerKind: "context",
+    handler: stripeCreateRefund as any,
+    baseConfig: { paymentIntentId: "pi_1", amount: "10.00" },
+    knownSecrets: ["mock-token-12345"],
+    knownPii: ["alice@example.com"],
+    isBillingImpacting: true,
+    primeOutboundMocks: () => {
+      fetchMock.mockResponseOnce(JSON.stringify(SAMPLE))
+    },
+    resetOutboundMocks: () => {
+      fetchMock.resetMocks()
+    },
+    assertNoOutboundCalls: () => {
+      expect(getFetchCalls()).toHaveLength(0)
+    },
+    expectedProvider: "stripe",
   })
 })
