@@ -2,6 +2,9 @@ import { getDecryptedAccessToken } from '../core/getDecryptedAccessToken'
 import { refreshAndRetry } from '../core/refreshAndRetry'
 import { resolveValue } from '../core/resolveValue'
 import { ActionResult } from '../core/executeWait'
+import { buildIdempotencyKey, type HandlerExecutionMeta } from '../core/idempotencyKey'
+import { hashPayload } from '../core/hashPayload'
+import { checkReplay, recordFired } from '../core/sessionSideEffects'
 import { FileStorageService } from "@/lib/storage/fileStorage"
 import { deleteWorkflowTempFiles } from '@/lib/utils/workflowFileCleanup'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -17,7 +20,8 @@ import { logger } from '@/lib/utils/logger'
 export async function uploadGoogleDriveFile(
   config: any,
   userId: string,
-  input: Record<string, any>
+  input: Record<string, any>,
+  meta?: HandlerExecutionMeta,
 ): Promise<ActionResult> {
   logger.info('🚀 [uploadGoogleDriveFile] Starting with config:', {
     config,
@@ -339,6 +343,46 @@ export async function uploadGoogleDriveFile(
       }
     }
 
+    // Q4 — within-session idempotency. Hash the upload set (file names +
+    // byte sizes + folder/share config) so a re-resolved template
+    // producing the same upload set hashes equal. File bytes themselves
+    // are excluded — they can be very large; (name, size) is the standard
+    // dedup signal across cloud-storage idempotency systems.
+    const idempotencyKey = buildIdempotencyKey(meta)
+    const payloadHash = idempotencyKey
+      ? hashPayload({
+          files: filesToUpload.map((f) => ({
+            name: f.name,
+            mimeType: f.mimeType,
+            size: typeof f.data === 'string' ? f.data.length : f.data?.length ?? 0,
+          })),
+          folderId: folderId ?? null,
+          description: description ?? null,
+          convertToGoogleDocs,
+          ocr,
+          ocrLanguage,
+          shareWith,
+          sharePermission,
+          starred,
+          keepRevisionForever,
+          properties,
+          appProperties,
+        })
+      : ''
+
+    if (idempotencyKey) {
+      const replay = await checkReplay(idempotencyKey, payloadHash)
+      if (replay.kind === 'cached') return replay.result
+      if (replay.kind === 'mismatch') {
+        return {
+          success: false,
+          output: {},
+          message: 'This action was already executed for this session with different input.',
+          error: 'PAYLOAD_MISMATCH',
+        }
+      }
+    }
+
     // Upload each file
     logger.info('🚀 [uploadGoogleDriveFile] Starting file uploads to Google Drive...');
     for (const file of filesToUpload) {
@@ -502,7 +546,7 @@ export async function uploadGoogleDriveFile(
 
     const successCount = uploadedFileResults.filter(r => r.success).length
 
-    return {
+    const actionResult: ActionResult = {
       success: successCount > 0,
       output: {
         uploadedFiles: uploadedFileResults,
@@ -512,6 +556,19 @@ export async function uploadGoogleDriveFile(
       },
       message: `Successfully uploaded ${successCount} of ${filesToUpload.length} files to Google Drive`
     }
+
+    // Q4 — record only on a fully-successful aggregate. A partial success
+    // (some uploads failed) leaves the marker absent so a retry can
+    // re-attempt the failed uploads.
+    if (idempotencyKey && actionResult.success && successCount === filesToUpload.length) {
+      const firstFileId = uploadedFileResults.find(r => r.success && r.fileId)?.fileId ?? null
+      await recordFired(idempotencyKey, actionResult, payloadHash, {
+        provider: 'google-drive',
+        externalId: firstFileId,
+      })
+    }
+
+    return actionResult
 
   } catch (error: any) {
     logger.error('❌ [uploadGoogleDriveFile] Upload failed with error:', {

@@ -20,6 +20,8 @@ import {
   mockCalendarApi,
   setMockTokenRefreshOutcome,
   getHealthEngineCalls,
+  setSessionReplayOutcome,
+  getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
 
 import { createGoogleCalendarEvent } from "@/lib/workflows/actions/google-calendar/createEvent"
@@ -380,5 +382,80 @@ describe("createGoogleCalendarEvent — Q3 — 401 handling", () => {
     expect(result.success).toBe(false)
     expect(mockCalendarApi.events.insert).toHaveBeenCalledTimes(1)
     expect(getHealthEngineCalls()).toHaveLength(1)
+  })
+})
+
+// Q4 — within-session idempotency.
+// Calendar's hash excludes conferenceData.requestId (Date.now()) so a
+// re-resolved template producing the same event content hashes equal.
+// See learning/docs/handler-contracts.md Q4.
+describe("createGoogleCalendarEvent — Q4 — idempotency within session", () => {
+  const meta = {
+    executionSessionId: "session-1",
+    nodeId: "node-A",
+    actionType: "google_calendar_action_create_event",
+    provider: "google-calendar",
+  }
+  const config = {
+    title: "Sync",
+    startDate: "2026-05-10",
+    startTime: "09:00",
+    endDate: "2026-05-10",
+    endTime: "10:00",
+    attendees: ["a@x.com"],
+  }
+
+  test("first invocation fires the SDK and records the marker", async () => {
+    mockCalendarApi.events.insert.mockResolvedValue({
+      data: { id: "evt-1", htmlLink: "https://link" },
+    })
+
+    const result = await createGoogleCalendarEvent(config, "user-1", {}, meta)
+    expect(result.success).toBe(true)
+    expect(mockCalendarApi.events.insert).toHaveBeenCalledTimes(1)
+    const records = getSessionRecordCalls()
+    expect(records).toHaveLength(1)
+    expect(records[0].options?.provider).toBe("google-calendar")
+    expect(records[0].options?.externalId).toBe("evt-1")
+  })
+
+  test("replay with matching payload returns cached, no SDK call", async () => {
+    mockCalendarApi.events.insert.mockResolvedValue({ data: { id: "evt-1" } })
+    const first = await createGoogleCalendarEvent(config, "user-1", {}, meta)
+
+    mockCalendarApi.events.insert.mockClear()
+    const second = await createGoogleCalendarEvent(config, "user-1", {}, meta)
+    expect(second.success).toBe(true)
+    expect(mockCalendarApi.events.insert).not.toHaveBeenCalled()
+    expect(second.output?.eventId).toBe(first.output?.eventId)
+  })
+
+  test("DIFFERENT payload returns PAYLOAD_MISMATCH, no SDK call", async () => {
+    setSessionReplayOutcome(
+      {
+        executionSessionId: meta.executionSessionId,
+        nodeId: meta.nodeId,
+        actionType: meta.actionType,
+      },
+      "mismatch",
+    )
+
+    const result = await createGoogleCalendarEvent(config, "user-1", {}, meta)
+    expect(result.success).toBe(false)
+    expect(result.error).toBe("PAYLOAD_MISMATCH")
+    expect(mockCalendarApi.events.insert).not.toHaveBeenCalled()
+  })
+
+  test("different sessionId fires the SDK again (rerun)", async () => {
+    mockCalendarApi.events.insert.mockResolvedValue({ data: { id: "evt-1" } })
+    await createGoogleCalendarEvent(config, "user-1", {}, meta)
+    mockCalendarApi.events.insert.mockClear()
+
+    mockCalendarApi.events.insert.mockResolvedValue({ data: { id: "evt-2" } })
+    await createGoogleCalendarEvent(config, "user-1", {}, {
+      ...meta,
+      executionSessionId: "session-2",
+    })
+    expect(mockCalendarApi.events.insert).toHaveBeenCalledTimes(1)
   })
 })

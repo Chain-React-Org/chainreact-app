@@ -22,6 +22,8 @@ import {
   assertFetchCalled,
   setMockTokenRefreshOutcome,
   getHealthEngineCalls,
+  setSessionReplayOutcome,
+  getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
 
 import { sendOutlookEmail } from "@/lib/workflows/actions/microsoft-outlook/sendEmail"
@@ -402,5 +404,84 @@ describe("sendOutlookEmail — Q3 — 401 handling", () => {
 
     expect(getFetchCalls().filter((c) => c.method === "POST")).toHaveLength(1)
     expect(getHealthEngineCalls()).toHaveLength(1)
+  })
+})
+
+// Q4 — within-session idempotency.
+// Same shape as Gmail's Q4 block — same key + same payload → cached;
+// same key + different payload → PAYLOAD_MISMATCH; different sessionId →
+// fires. See learning/docs/handler-contracts.md Q4.
+describe("sendOutlookEmail — Q4 — idempotency within session", () => {
+  const meta = {
+    executionSessionId: "session-1",
+    nodeId: "node-A",
+    actionType: "outlook_action_send_email",
+    provider: "microsoft-outlook",
+  }
+  const config = {
+    to: "alice@x.com",
+    subject: "S",
+    body: "B",
+  }
+
+  function mockSendOk() {
+    fetchMock
+      .mockResponseOnce("", { status: 202 })
+      .mockResponseOnce(JSON.stringify({ value: [{ id: "msg-1", subject: "S" }] }))
+  }
+
+  test("first invocation fires Graph and records the side-effect marker", async () => {
+    mockSendOk()
+    const result = await sendOutlookEmail(config, "user-1", {}, meta)
+    expect(result.success).toBe(true)
+    const records = getSessionRecordCalls()
+    expect(records).toHaveLength(1)
+    expect(records[0].key).toEqual({
+      executionSessionId: "session-1",
+      nodeId: "node-A",
+      actionType: "outlook_action_send_email",
+    })
+    expect(records[0].options?.provider).toBe("microsoft-outlook")
+  })
+
+  test("replay with same key + matching payload returns cached result, no Graph call", async () => {
+    mockSendOk()
+    const first = await sendOutlookEmail(config, "user-1", {}, meta)
+    expect(first.success).toBe(true)
+
+    fetchMock.resetMocks() // Drop fetch history; if a second send fires, the next call will reject.
+    const second = await sendOutlookEmail(config, "user-1", {}, meta)
+    expect(second.success).toBe(true)
+    // No Graph fetches at all — fully cached.
+    expect(getFetchCalls()).toHaveLength(0)
+    // Output preserved verbatim.
+    expect(second.output?.messageId).toBe(first.output?.messageId)
+  })
+
+  test("same key + DIFFERENT payload returns PAYLOAD_MISMATCH, no Graph call", async () => {
+    setSessionReplayOutcome(
+      {
+        executionSessionId: meta.executionSessionId,
+        nodeId: meta.nodeId,
+        actionType: meta.actionType,
+      },
+      "mismatch",
+    )
+
+    const result = await sendOutlookEmail(config, "user-1", {}, meta)
+    expect(result.success).toBe(false)
+    expect(result.error).toBe("PAYLOAD_MISMATCH")
+    expect(getFetchCalls()).toHaveLength(0)
+  })
+
+  test("different sessionId fires Graph again (manual rerun is a new session)", async () => {
+    mockSendOk()
+    await sendOutlookEmail(config, "user-1", {}, meta)
+    fetchMock.resetMocks()
+    mockSendOk()
+    await sendOutlookEmail(config, "user-1", {}, { ...meta, executionSessionId: "session-2" })
+    expect(
+      getFetchCalls().some((c) => c.url.includes("/me/sendMail")),
+    ).toBe(true)
   })
 })

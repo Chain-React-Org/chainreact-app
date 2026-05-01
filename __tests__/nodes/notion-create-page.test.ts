@@ -19,8 +19,11 @@ import {
   setMockToken,
   fetchMock,
   assertFetchCalled,
+  getFetchCalls,
   setMockTokenRefreshOutcome,
   getHealthEngineCalls,
+  setSessionReplayOutcome,
+  getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
 
 import { executeNotionCreatePage } from "@/lib/workflows/actions/notion/pageActions"
@@ -276,5 +279,70 @@ describe("executeNotionCreatePage — Q3 — 401 handling", () => {
 
     expect(result.success).toBe(false)
     expect(getHealthEngineCalls()).toHaveLength(1)
+  })
+})
+
+// Q4 — within-session idempotency.
+describe("executeNotionCreatePage — Q4 — idempotency within session", () => {
+  const meta = {
+    executionSessionId: "session-1",
+    nodeId: "node-A",
+    actionType: "notion_action_create_page",
+    provider: "notion",
+  }
+  const config = {
+    parentType: "database",
+    parentDatabase: "db-1",
+    title: "T",
+  }
+
+  test("first invocation fires the POST and records the marker", async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ id: "p1", url: "u" }))
+    const result = await executeNotionCreatePage(config, "user-1", {}, meta)
+    expect(result.success).toBe(true)
+    const records = getSessionRecordCalls()
+    expect(records).toHaveLength(1)
+    expect(records[0].options?.provider).toBe("notion")
+    expect(records[0].options?.externalId).toBe("p1")
+  })
+
+  test("replay with matching payload returns cached, no Notion POST", async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ id: "p1", url: "u" }))
+    const first = await executeNotionCreatePage(config, "user-1", {}, meta)
+    expect(first.success).toBe(true)
+
+    fetchMock.resetMocks()
+    const second = await executeNotionCreatePage(config, "user-1", {}, meta)
+    expect(second.success).toBe(true)
+    expect(getFetchCalls()).toHaveLength(0)
+    expect(second.output?.page_id).toBe(first.output?.page_id)
+  })
+
+  test("DIFFERENT payload returns PAYLOAD_MISMATCH, no POST", async () => {
+    setSessionReplayOutcome(
+      {
+        executionSessionId: meta.executionSessionId,
+        nodeId: meta.nodeId,
+        actionType: meta.actionType,
+      },
+      "mismatch",
+    )
+    const result = await executeNotionCreatePage(config, "user-1", {}, meta)
+    expect(result.success).toBe(false)
+    expect(result.error).toBe("PAYLOAD_MISMATCH")
+    expect(getFetchCalls()).toHaveLength(0)
+  })
+
+  test("different sessionId fires the POST again (rerun)", async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ id: "p1", url: "u" }))
+    await executeNotionCreatePage(config, "user-1", {}, meta)
+    fetchMock.resetMocks()
+
+    fetchMock.mockResponseOnce(JSON.stringify({ id: "p2", url: "u" }))
+    await executeNotionCreatePage(config, "user-1", {}, {
+      ...meta,
+      executionSessionId: "session-2",
+    })
+    expect(getFetchCalls()).toHaveLength(1)
   })
 })

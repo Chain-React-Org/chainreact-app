@@ -3,6 +3,9 @@ import { makeShopifyGraphQLRequest, validateShopifyIntegration, getShopDomain } 
 import { getIntegrationById } from '../../executeNode'
 import { resolveValue } from '../core/resolveValue'
 import { refreshAndRetry } from '../core/refreshAndRetry'
+import { buildIdempotencyKey, type HandlerExecutionMeta } from '../core/idempotencyKey'
+import { hashPayload } from '../core/hashPayload'
+import { checkReplay, recordFired } from '../core/sessionSideEffects'
 import { logger } from '@/lib/utils/logger'
 
 /**
@@ -22,7 +25,8 @@ function extractNumericId(gid: string): string {
 export async function createShopifyCustomer(
   config: any,
   userId: string,
-  input: Record<string, any>
+  input: Record<string, any>,
+  meta?: HandlerExecutionMeta,
 ): Promise<ActionResult> {
   try {
     // 1. Get and validate integration
@@ -74,6 +78,31 @@ export async function createShopifyCustomer(
     if (tags) variables.input.tags = tags.split(',').map((t: string) => t.trim())
     if (sendWelcomeEmail) variables.input.emailMarketingConsent = { marketingState: 'SUBSCRIBED' }
 
+    // Q4 — within-session idempotency. Hash the resolved customer input
+    // (email + name + phone + tags + marketing). Shopify customer-create
+    // is non-idempotent on its own, so the marker is the only protection
+    // against duplicate customers on a session retry.
+    const idempotencyKey = buildIdempotencyKey(meta)
+    const payloadHash = idempotencyKey
+      ? hashPayload({
+          shopDomain: getShopDomain(integration, selectedStore),
+          input: variables.input,
+        })
+      : ''
+
+    if (idempotencyKey) {
+      const replay = await checkReplay(idempotencyKey, payloadHash)
+      if (replay.kind === 'cached') return replay.result
+      if (replay.kind === 'mismatch') {
+        return {
+          success: false,
+          output: {},
+          message: 'This action was already executed for this session with different input.',
+          error: 'PAYLOAD_MISMATCH',
+        }
+      }
+    }
+
     // 4. Make GraphQL request. Wrapped in `refreshAndRetry` (Q3) — Shopify
     // is non_refreshable in our authSchemes registry (offline tokens have
     // no refresh grant), so a 401 short-circuits to a structured
@@ -102,7 +131,7 @@ export async function createShopifyCustomer(
     const shopDomain = getShopDomain(integration, selectedStore)
     const customerId = extractNumericId(customer.id)
 
-    return {
+    const actionResult: ActionResult = {
       success: true,
       output: {
         customer_id: customerId,
@@ -113,6 +142,15 @@ export async function createShopifyCustomer(
       },
       message: 'Customer created successfully'
     }
+
+    if (idempotencyKey) {
+      await recordFired(idempotencyKey, actionResult, payloadHash, {
+        provider: 'shopify',
+        externalId: customerId ?? null,
+      })
+    }
+
+    return actionResult
   } catch (error: any) {
     logger.error('[Shopify GraphQL] Create customer error:', error)
     return {

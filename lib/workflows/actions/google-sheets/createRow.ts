@@ -1,5 +1,8 @@
 import { getDecryptedAccessToken, resolveValue, ActionResult } from '@/lib/workflows/actions/core'
 import { refreshAndRetry } from '@/lib/workflows/actions/core/refreshAndRetry'
+import { buildIdempotencyKey, type HandlerExecutionMeta } from '@/lib/workflows/actions/core/idempotencyKey'
+import { hashPayload } from '@/lib/workflows/actions/core/hashPayload'
+import { checkReplay, recordFired } from '@/lib/workflows/actions/core/sessionSideEffects'
 
 import { logger } from '@/lib/utils/logger'
 import { parseSheetName } from './utils'
@@ -10,7 +13,8 @@ import { parseSheetName } from './utils'
 export async function createGoogleSheetsRow(
   config: any,
   userId: string,
-  input: Record<string, any>
+  input: Record<string, any>,
+  meta?: HandlerExecutionMeta,
 ): Promise<ActionResult> {
   try {
     const accessToken = await getDecryptedAccessToken(userId, "google-sheets")
@@ -181,6 +185,33 @@ export async function createGoogleSheetsRow(
       logger.info("📊 Field names from UI:", Object.keys(fieldMapping))
     }
 
+    // Q4 — within-session idempotency. Hash the resolved write target +
+    // values so a re-resolved template producing the same row hashes
+    // equal. Header read above is idempotent (read-only), so it stays
+    // outside the gate.
+    const idempotencyKey = buildIdempotencyKey(meta)
+    const payloadHash = idempotencyKey
+      ? hashPayload({
+          spreadsheetId,
+          sheetName,
+          insertPosition,
+          specificRow: specificRow ?? null,
+          finalRowValues,
+        })
+      : ''
+
+    if (idempotencyKey) {
+      const replay = await checkReplay(idempotencyKey, payloadHash)
+      if (replay.kind === 'cached') return replay.result
+      if (replay.kind === 'mismatch') {
+        return {
+          success: false,
+          message: 'This action was already executed for this session with different input.',
+          error: 'PAYLOAD_MISMATCH',
+        }
+      }
+    }
+
     // Get sheet metadata if we need to insert at beginning or specific row
     let sheetId: number | undefined
     if (insertPosition === 'prepend' || insertPosition === 'specific_row') {
@@ -333,7 +364,7 @@ export async function createGoogleSheetsRow(
       }
     })
 
-    return {
+    const actionResult: ActionResult = {
       success: true,
       output: {
         rowNumber: result.updates?.updatedRows || 1,
@@ -345,6 +376,15 @@ export async function createGoogleSheetsRow(
       },
       message: `Successfully added row to ${sheetName}`
     }
+
+    if (idempotencyKey) {
+      await recordFired(idempotencyKey, actionResult, payloadHash, {
+        provider: 'google-sheets',
+        externalId: result.updates?.updatedRange ?? null,
+      })
+    }
+
+    return actionResult
 
   } catch (error: any) {
     logger.error("Google Sheets create row error:", error)

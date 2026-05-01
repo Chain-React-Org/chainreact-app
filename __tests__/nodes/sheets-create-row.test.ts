@@ -19,6 +19,8 @@ import {
   getFetchCalls,
   setMockTokenRefreshOutcome,
   getHealthEngineCalls,
+  setSessionReplayOutcome,
+  getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
 
 import { createGoogleSheetsRow } from "@/lib/workflows/actions/google-sheets/createRow"
@@ -324,5 +326,91 @@ describe("createGoogleSheetsRow — Q3 — 401 handling", () => {
     // Only one POST attempt because refresh failed (no retry).
     expect(getFetchCalls().filter((c) => c.method === "POST")).toHaveLength(1)
     expect(getHealthEngineCalls()).toHaveLength(1)
+  })
+})
+
+// Q4 — within-session idempotency.
+describe("createGoogleSheetsRow — Q4 — idempotency within session", () => {
+  const meta = {
+    executionSessionId: "session-1",
+    nodeId: "node-A",
+    actionType: "google_sheets_action_create_row",
+    provider: "google-sheets",
+  }
+  const config = {
+    spreadsheetId: "ss-1",
+    sheetName: "Sheet1",
+    values: ["a", "b"],
+  }
+
+  function mockHeadersAndAppend() {
+    fetchMock
+      .mockResponseOnce(JSON.stringify({ values: [["A", "B"]] })) // header read
+      .mockResponseOnce(
+        JSON.stringify({
+          updates: { updatedRows: 1, updatedRange: "Sheet1!A2:B2" },
+        }),
+      )
+  }
+
+  test("first invocation fires the append and records the marker", async () => {
+    mockHeadersAndAppend()
+    const result = await createGoogleSheetsRow(config, "user-1", {}, meta)
+    expect(result.success).toBe(true)
+    const records = getSessionRecordCalls()
+    expect(records).toHaveLength(1)
+    expect(records[0].options?.provider).toBe("google-sheets")
+  })
+
+  test("replay with matching payload returns cached, no append fired", async () => {
+    mockHeadersAndAppend()
+    const first = await createGoogleSheetsRow(config, "user-1", {}, meta)
+    expect(first.success).toBe(true)
+
+    fetchMock.resetMocks()
+    // Header read may still happen (read-only, outside the gate); allow it.
+    fetchMock.mockResponseOnce(JSON.stringify({ values: [["A", "B"]] }))
+    const second = await createGoogleSheetsRow(config, "user-1", {}, meta)
+    expect(second.success).toBe(true)
+    // No append/update POST/PUT — cached path.
+    const writeCalls = getFetchCalls().filter(
+      (c) => c.method === "POST" || c.method === "PUT",
+    )
+    expect(writeCalls).toHaveLength(0)
+  })
+
+  test("DIFFERENT payload returns PAYLOAD_MISMATCH, no append", async () => {
+    setSessionReplayOutcome(
+      {
+        executionSessionId: meta.executionSessionId,
+        nodeId: meta.nodeId,
+        actionType: meta.actionType,
+      },
+      "mismatch",
+    )
+    fetchMock.mockResponseOnce(JSON.stringify({ values: [["A", "B"]] }))
+    const result = await createGoogleSheetsRow(config, "user-1", {}, meta)
+    expect(result.success).toBe(false)
+    expect(result.error).toBe("PAYLOAD_MISMATCH")
+    const writeCalls = getFetchCalls().filter(
+      (c) => c.method === "POST" || c.method === "PUT",
+    )
+    expect(writeCalls).toHaveLength(0)
+  })
+
+  test("different sessionId fires the append again (rerun)", async () => {
+    mockHeadersAndAppend()
+    await createGoogleSheetsRow(config, "user-1", {}, meta)
+    fetchMock.resetMocks()
+
+    mockHeadersAndAppend()
+    await createGoogleSheetsRow(config, "user-1", {}, {
+      ...meta,
+      executionSessionId: "session-2",
+    })
+    const writeCalls = getFetchCalls().filter(
+      (c) => c.method === "POST" || c.method === "PUT",
+    )
+    expect(writeCalls.length).toBeGreaterThanOrEqual(1)
   })
 })

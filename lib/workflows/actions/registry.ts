@@ -534,15 +534,33 @@ import { logger } from '@/lib/utils/logger'
  * Helper to create ExecutionContext wrapper for actions using that pattern
  */
 function createExecutionContextWrapper(handler: Function) {
-  return async (params: { config: any; userId: string; input: Record<string, any> }): Promise<ActionResult> => {
+  return async (params: {
+    config: any
+    userId: string
+    input: Record<string, any>
+    meta?: import('./core/idempotencyKey').HandlerExecutionMeta
+  }): Promise<ActionResult> => {
     // Import getIntegrationById helper (from separate file to avoid circular dependency)
     const { getIntegrationById } = await import('../integrationHelpers')
+
+    // PR-C4 — thread the engine-supplied execution metadata onto the
+    // synthesized context so context-style handlers (Stripe et al) can
+    // build their idempotency key without an extra param.
+    const executionSessionId =
+      params.meta?.executionSessionId ?? params.input?.executionId ?? params.input?.sessionId
+    const nodeId = params.meta?.nodeId ?? params.input?.nodeId
+    const actionType = params.meta?.actionType ?? params.input?.actionType
 
     // Create a mock ExecutionContext with a dataFlowManager that uses resolveValue
     const context = {
       config: params.config,
       userId: params.userId,
       workflowId: params.input?.workflowId || 'unknown',
+      executionId: executionSessionId,
+      executionSessionId,
+      nodeId,
+      actionType,
+      meta: params.meta,
       testMode: params.input?.testMode || false,
       dataFlowManager: {
         resolveVariable: (value: any) => resolveValueCore(value, params.input)
@@ -1466,8 +1484,12 @@ export const actionHandlerRegistry: Record<string, Function> = {
     createShopifyProduct(params.config, params.userId, params.input),
   "shopify_action_update_product": (params: { config: any; userId: string; input: Record<string, any> }) =>
     updateShopifyProduct(params.config, params.userId, params.input),
-  "shopify_action_create_customer": (params: { config: any; userId: string; input: Record<string, any> }) =>
-    createShopifyCustomer(params.config, params.userId, params.input),
+  "shopify_action_create_customer": (params: {
+    config: any
+    userId: string
+    input: Record<string, any>
+    meta?: import('./core/idempotencyKey').HandlerExecutionMeta
+  }) => createShopifyCustomer(params.config, params.userId, params.input, params.meta),
   "shopify_action_update_customer": (params: { config: any; userId: string; input: Record<string, any> }) =>
     updateShopifyCustomer(params.config, params.userId, params.input),
   "shopify_action_update_inventory": (params: { config: any; userId: string; input: Record<string, any> }) =>

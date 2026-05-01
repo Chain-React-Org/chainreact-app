@@ -17,6 +17,8 @@ import {
   mockDriveApi,
   setMockTokenRefreshOutcome,
   getHealthEngineCalls,
+  setSessionReplayOutcome,
+  getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
 
 import { uploadGoogleDriveFile } from "@/lib/workflows/actions/googleDrive/uploadFile"
@@ -296,5 +298,74 @@ describe("uploadGoogleDriveFile — Q3 — 401 handling", () => {
     expect(result.success).toBe(false)
     expect(mockDriveApi.files.create).toHaveBeenCalledTimes(1)
     expect(getHealthEngineCalls()).toHaveLength(1)
+  })
+})
+
+// Q4 — within-session idempotency.
+// Drive's hash covers the upload set (file names + sizes + mimeType +
+// folder + share config). Bytes themselves are excluded — see source for
+// rationale.
+describe("uploadGoogleDriveFile — Q4 — idempotency within session", () => {
+  const meta = {
+    executionSessionId: "session-1",
+    nodeId: "node-A",
+    actionType: "google_drive_action_upload_file",
+    provider: "google-drive",
+  }
+  const config = {
+    sourceType: "node",
+    fileFromNode: makeInlineFile("hello world", "doc.txt"),
+  }
+
+  test("first invocation fires Drive and records the marker", async () => {
+    mockDriveApi.files.create.mockResolvedValue({
+      data: { id: "f1", name: "doc.txt", webViewLink: "v" },
+    })
+
+    const result = await uploadGoogleDriveFile(config, "user-1", {}, meta)
+    expect(result.success).toBe(true)
+    const records = getSessionRecordCalls()
+    expect(records).toHaveLength(1)
+    expect(records[0].options?.provider).toBe("google-drive")
+    expect(records[0].options?.externalId).toBe("f1")
+  })
+
+  test("replay with matching payload returns cached, no Drive call", async () => {
+    mockDriveApi.files.create.mockResolvedValue({ data: { id: "f1" } })
+    const first = await uploadGoogleDriveFile(config, "user-1", {}, meta)
+
+    mockDriveApi.files.create.mockClear()
+    const second = await uploadGoogleDriveFile(config, "user-1", {}, meta)
+    expect(second.success).toBe(true)
+    expect(mockDriveApi.files.create).not.toHaveBeenCalled()
+    expect(second.output?.uploadedFiles?.[0]?.fileId).toBe(first.output?.uploadedFiles?.[0]?.fileId)
+  })
+
+  test("DIFFERENT payload returns PAYLOAD_MISMATCH, no Drive call", async () => {
+    setSessionReplayOutcome(
+      {
+        executionSessionId: meta.executionSessionId,
+        nodeId: meta.nodeId,
+        actionType: meta.actionType,
+      },
+      "mismatch",
+    )
+    const result = await uploadGoogleDriveFile(config, "user-1", {}, meta)
+    expect(result.success).toBe(false)
+    expect(result.error).toBe("PAYLOAD_MISMATCH")
+    expect(mockDriveApi.files.create).not.toHaveBeenCalled()
+  })
+
+  test("different sessionId fires Drive again (rerun)", async () => {
+    mockDriveApi.files.create.mockResolvedValue({ data: { id: "f1" } })
+    await uploadGoogleDriveFile(config, "user-1", {}, meta)
+    mockDriveApi.files.create.mockClear()
+
+    mockDriveApi.files.create.mockResolvedValue({ data: { id: "f2" } })
+    await uploadGoogleDriveFile(config, "user-1", {}, {
+      ...meta,
+      executionSessionId: "session-2",
+    })
+    expect(mockDriveApi.files.create).toHaveBeenCalledTimes(1)
   })
 })

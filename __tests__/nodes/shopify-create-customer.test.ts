@@ -15,8 +15,11 @@ import {
   setMockIntegration,
   fetchMock,
   assertFetchCalled,
+  getFetchCalls,
   setMockTokenRefreshOutcome,
   getHealthEngineCalls,
+  setSessionReplayOutcome,
+  getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
 
 import { createShopifyCustomer } from "@/lib/workflows/actions/shopify/createCustomer"
@@ -302,5 +305,70 @@ describe("createShopifyCustomer — Q3 — 401 handling (non_refreshable)", () =
     // Confirm refresh was not attempted — only one POST happened.
     const calls = fetchMock.mock.calls.filter((c) => (c[1] as any)?.method === "POST")
     expect(calls).toHaveLength(1)
+  })
+})
+
+// Q4 — within-session idempotency.
+describe("createShopifyCustomer — Q4 — idempotency within session", () => {
+  const meta = {
+    executionSessionId: "session-1",
+    nodeId: "node-A",
+    actionType: "shopify_action_create_customer",
+    provider: "shopify",
+  }
+  const config = {
+    integration_id: "integration-1",
+    email: "alice@example.com",
+    first_name: "Alice",
+  }
+
+  test("first invocation fires the GraphQL POST and records the marker", async () => {
+    fetchMock.mockResponseOnce(JSON.stringify(SUCCESSFUL_GQL_RESPONSE))
+    const result = await createShopifyCustomer(config, "user-1", {}, meta)
+    expect(result.success).toBe(true)
+    const records = getSessionRecordCalls()
+    expect(records).toHaveLength(1)
+    expect(records[0].options?.provider).toBe("shopify")
+    expect(records[0].options?.externalId).toBe("12345")
+  })
+
+  test("replay with matching payload returns cached, no GraphQL POST", async () => {
+    fetchMock.mockResponseOnce(JSON.stringify(SUCCESSFUL_GQL_RESPONSE))
+    const first = await createShopifyCustomer(config, "user-1", {}, meta)
+    expect(first.success).toBe(true)
+
+    fetchMock.resetMocks()
+    const second = await createShopifyCustomer(config, "user-1", {}, meta)
+    expect(second.success).toBe(true)
+    expect(getFetchCalls()).toHaveLength(0)
+    expect(second.output?.customer_id).toBe(first.output?.customer_id)
+  })
+
+  test("DIFFERENT payload returns PAYLOAD_MISMATCH, no POST", async () => {
+    setSessionReplayOutcome(
+      {
+        executionSessionId: meta.executionSessionId,
+        nodeId: meta.nodeId,
+        actionType: meta.actionType,
+      },
+      "mismatch",
+    )
+    const result = await createShopifyCustomer(config, "user-1", {}, meta)
+    expect(result.success).toBe(false)
+    expect(result.error).toBe("PAYLOAD_MISMATCH")
+    expect(getFetchCalls()).toHaveLength(0)
+  })
+
+  test("different sessionId fires the POST again (rerun)", async () => {
+    fetchMock.mockResponseOnce(JSON.stringify(SUCCESSFUL_GQL_RESPONSE))
+    await createShopifyCustomer(config, "user-1", {}, meta)
+    fetchMock.resetMocks()
+
+    fetchMock.mockResponseOnce(JSON.stringify(SUCCESSFUL_GQL_RESPONSE))
+    await createShopifyCustomer(config, "user-1", {}, {
+      ...meta,
+      executionSessionId: "session-2",
+    })
+    expect(getFetchCalls()).toHaveLength(1)
   })
 })

@@ -77,12 +77,21 @@ export class GoogleIntegrationService {
       }
     }
 
+    // PR-C4 — engine metadata for within-session idempotency.
+    const meta = {
+      executionSessionId: context.executionId,
+      nodeId: node.id,
+      actionType: node.data?.type ?? nodeType,
+      provider: 'google-sheets',
+      testMode: context.testMode,
+    }
+
     // Import actual implementations
     switch (nodeType) {
       case "sheets_append":
       case "google_sheets_action_append":
         const { createGoogleSheetsRow } = await import('@/lib/workflows/actions/googleSheets')
-        return await createGoogleSheetsRow(config, context.userId, context.data || {})
+        return await createGoogleSheetsRow(config, context.userId, context.data || {}, meta)
         
       case "sheets_read":
       case "google_sheets_action_read":
@@ -185,11 +194,20 @@ export class GoogleIntegrationService {
       }
     }
 
+    // PR-C4 — engine metadata for within-session idempotency.
+    const meta = {
+      executionSessionId: context.executionId,
+      nodeId: node.id,
+      actionType: node.data?.type ?? nodeType,
+      provider: 'google-calendar',
+      testMode: context.testMode,
+    }
+
     switch (nodeType) {
       case "calendar_create_event":
       case "google_calendar_action_create_event":
         const { createGoogleCalendarEvent } = await import('@/lib/workflows/actions/google-calendar/createEvent')
-        return await createGoogleCalendarEvent(config, context.userId, context.data || {})
+        return await createGoogleCalendarEvent(config, context.userId, context.data || {}, meta)
         
       case "calendar_update_event":
       case "google_calendar_action_update_event":
@@ -242,7 +260,14 @@ export class GoogleIntegrationService {
     try {
       // Use the uploadGoogleDriveFile function we already have
       const { uploadGoogleDriveFile } = await import('@/lib/workflows/actions/googleDrive/uploadFile')
-      return await uploadGoogleDriveFile(enrichedConfig, context.userId, context.data || {})
+      const meta = {
+        executionSessionId: context.executionId,
+        nodeId: node.id,
+        actionType: node.data?.type,
+        provider: 'google-drive',
+        testMode: context.testMode,
+      }
+      return await uploadGoogleDriveFile(enrichedConfig, context.userId, context.data || {}, meta)
     } catch (error: any) {
       logger.error("❌ [GoogleIntegrationService] Error executing Google Drive upload:", error)
       throw new Error(`Google Drive upload failed: ${error.message}`)
@@ -264,7 +289,14 @@ export class GoogleIntegrationService {
 
     // Import and use actual implementation
     const { uploadGoogleDriveFile } = await import('@/lib/workflows/actions/googleDrive/uploadFile')
-    return await uploadGoogleDriveFile(config, context.userId, context.data || {})
+    const meta = {
+      executionSessionId: context.executionId,
+      nodeId: node.id,
+      actionType: node.data?.type,
+      provider: 'google-drive',
+      testMode: context.testMode,
+    }
+    return await uploadGoogleDriveFile(config, context.userId, context.data || {}, meta)
   }
 
   private async executeCreateFolder(node: any, context: ExecutionContext) {

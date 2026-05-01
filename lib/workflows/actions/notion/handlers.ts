@@ -290,7 +290,8 @@ async function notionApiRequest(
  */
 export async function notionCreatePage(
   config: any,
-  context: ExecutionContext
+  context: ExecutionContext,
+  meta?: import('../core/idempotencyKey').HandlerExecutionMeta,
 ): Promise<ActionResult> {
   try {
     const accessToken = await getDecryptedAccessToken(context.userId, "notion")
@@ -348,6 +349,28 @@ export async function notionCreatePage(
       payload.children = config.content_blocks
     }
 
+    // Q4 — within-session idempotency. Hash the resolved Notion page
+    // payload (parent + properties + content blocks). Bracketed
+    // around the principal create-page POST.
+    const { buildIdempotencyKey } = await import('../core/idempotencyKey')
+    const { hashPayload } = await import('../core/hashPayload')
+    const { checkReplay, recordFired } = await import('../core/sessionSideEffects')
+    const idempotencyKey = buildIdempotencyKey(meta)
+    const payloadHash = idempotencyKey ? hashPayload(payload) : ''
+
+    if (idempotencyKey) {
+      const replay = await checkReplay(idempotencyKey, payloadHash)
+      if (replay.kind === 'cached') return replay.result
+      if (replay.kind === 'mismatch') {
+        return {
+          success: false,
+          output: {},
+          message: 'This action was already executed for this session with different input.',
+          error: 'PAYLOAD_MISMATCH',
+        }
+      }
+    }
+
     // Q3 — wrap the create-page call in `refreshAndRetry`. Notion is
     // OAuth-with-refresh; on 401 the wrapper refreshes once, retries, and
     // surfaces a structured auth failure on permanent failure.
@@ -367,7 +390,7 @@ export async function notionCreatePage(
     }
     const result = wrapped.data
 
-    return {
+    const actionResult: ActionResult = {
       success: true,
       output: {
         page_id: result.id,
@@ -376,6 +399,15 @@ export async function notionCreatePage(
         last_edited_time: result.last_edited_time
       }
     }
+
+    if (idempotencyKey) {
+      await recordFired(idempotencyKey, actionResult, payloadHash, {
+        provider: 'notion',
+        externalId: result.id ?? null,
+      })
+    }
+
+    return actionResult
   } catch (error: any) {
     logger.error("Notion create page error:", error)
     return {

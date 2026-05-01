@@ -3,6 +3,9 @@ import { resolveValue } from '../core/resolveValue'
 import { parseRecipients } from '../core/parseRecipients'
 import { refreshAndRetry } from '../core/refreshAndRetry'
 import { ActionResult } from '../core/executeWait'
+import { buildIdempotencyKey, type HandlerExecutionMeta } from '../core/idempotencyKey'
+import { hashPayload } from '../core/hashPayload'
+import { checkReplay, recordFired } from '../core/sessionSideEffects'
 import { google } from 'googleapis'
 
 import { logger } from '@/lib/utils/logger'
@@ -13,7 +16,8 @@ import { logger } from '@/lib/utils/logger'
 export async function createGoogleCalendarEvent(
   config: any,
   userId: string,
-  input: Record<string, any>
+  input: Record<string, any>,
+  meta?: HandlerExecutionMeta,
 ): Promise<ActionResult> {
   try {
     // Resolve config values if they contain template variables
@@ -278,6 +282,46 @@ export async function createGoogleCalendarEvent(
       eventData: JSON.stringify(eventData, null, 2)
     })
 
+    // Q4 — within-session idempotency. Hash the semantic event content
+    // (start/end/attendees/summary/location/description/visibility/etc.) —
+    // the conferenceData.requestId carries Date.now() and is excluded so a
+    // re-resolved template hashes equal across replays.
+    const idempotencyKey = buildIdempotencyKey(meta)
+    const payloadHash = idempotencyKey
+      ? hashPayload({
+          calendarId,
+          summary: eventData.summary,
+          location: eventData.location ?? null,
+          description: eventData.description ?? null,
+          start: eventData.start,
+          end: eventData.end,
+          attendees: eventData.attendees ?? [],
+          visibility: eventData.visibility ?? 'default',
+          transparency: eventData.transparency,
+          colorId: eventData.colorId ?? null,
+          recurrence: eventData.recurrence ?? null,
+          reminders: eventData.reminders ?? null,
+          guestsCanInviteOthers: eventData.guestsCanInviteOthers ?? null,
+          guestsCanSeeOtherGuests: eventData.guestsCanSeeOtherGuests ?? null,
+          guestsCanModify: eventData.guestsCanModify ?? null,
+          createMeetLink,
+          sendUpdates,
+        })
+      : ''
+
+    if (idempotencyKey) {
+      const replay = await checkReplay(idempotencyKey, payloadHash)
+      if (replay.kind === 'cached') return replay.result
+      if (replay.kind === 'mismatch') {
+        return {
+          success: false,
+          output: {},
+          message: 'This action was already executed for this session with different input.',
+          error: 'PAYLOAD_MISMATCH',
+        }
+      }
+    }
+
     // Always create a new event (each workflow execution creates a fresh event).
     // Wrapped in `refreshAndRetry` per Q3 — a 401 from googleapis triggers
     // one refresh+retry attempt; permanent failure returns a structured auth
@@ -319,7 +363,7 @@ export async function createGoogleCalendarEvent(
       conferenceData: createdEvent.conferenceData ? 'present' : 'absent'
     })
 
-    return {
+    const actionResult: ActionResult = {
       success: true,
       output: {
         eventId: createdEvent.id,
@@ -336,6 +380,15 @@ export async function createGoogleCalendarEvent(
         endTimezone: eventEndTimeZone
       }
     }
+
+    if (idempotencyKey) {
+      await recordFired(idempotencyKey, actionResult, payloadHash, {
+        provider: 'google-calendar',
+        externalId: createdEvent.id ?? null,
+      })
+    }
+
+    return actionResult
   } catch (error: any) {
     logger.error('❌ [Google Calendar] Error creating event:', {
       message: error.message,

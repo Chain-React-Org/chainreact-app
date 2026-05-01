@@ -19,6 +19,8 @@ import {
   assertFetchCalled,
   setMockTokenRefreshOutcome,
   getHealthEngineCalls,
+  setSessionReplayOutcome,
+  getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
 
 import { createAirtableRecord } from "@/lib/workflows/actions/airtable/createRecord"
@@ -344,5 +346,75 @@ describe("createAirtableRecord — Q3 — 401 handling", () => {
     expect(result.success).toBe(false)
     expect(postCount).toBe(1)
     expect(getHealthEngineCalls()).toHaveLength(1)
+  })
+})
+
+// Q4 — within-session idempotency.
+describe("createAirtableRecord — Q4 — idempotency within session", () => {
+  const meta = {
+    executionSessionId: "session-1",
+    nodeId: "node-A",
+    actionType: "airtable_action_create_record",
+    provider: "airtable",
+  }
+  const config = {
+    baseId: "app1",
+    tableName: "Tasks",
+    airtable_field_Name: "Alice",
+  }
+
+  test("first invocation fires POST and records the marker", async () => {
+    mockAirtableHappyPath()
+    const result = await createAirtableRecord(config, "user-1", {}, meta)
+    expect(result.success).toBe(true)
+    const records = getSessionRecordCalls()
+    expect(records).toHaveLength(1)
+    expect(records[0].options?.provider).toBe("airtable")
+  })
+
+  test("replay with matching payload returns cached, no POST fired", async () => {
+    mockAirtableHappyPath()
+    const first = await createAirtableRecord(config, "user-1", {}, meta)
+    expect(first.success).toBe(true)
+
+    fetchMock.resetMocks()
+    // Schema GETs may still happen (they're outside the gate); allow any.
+    fetchMock.mockResponse(async () => ({ body: JSON.stringify(SCHEMA_RESPONSE), status: 200 }))
+    const second = await createAirtableRecord(config, "user-1", {}, meta)
+    expect(second.success).toBe(true)
+    const writes = getFetchCalls().filter((c) => c.method === "POST")
+    expect(writes).toHaveLength(0)
+    expect(second.output?.recordId).toBe(first.output?.recordId)
+  })
+
+  test("DIFFERENT payload returns PAYLOAD_MISMATCH, no POST", async () => {
+    setSessionReplayOutcome(
+      {
+        executionSessionId: meta.executionSessionId,
+        nodeId: meta.nodeId,
+        actionType: meta.actionType,
+      },
+      "mismatch",
+    )
+    fetchMock.mockResponse(async () => ({ body: JSON.stringify(SCHEMA_RESPONSE), status: 200 }))
+    const result = await createAirtableRecord(config, "user-1", {}, meta)
+    expect(result.success).toBe(false)
+    expect(result.error).toBe("PAYLOAD_MISMATCH")
+    const writes = getFetchCalls().filter((c) => c.method === "POST")
+    expect(writes).toHaveLength(0)
+  })
+
+  test("different sessionId fires POST again (rerun)", async () => {
+    mockAirtableHappyPath()
+    await createAirtableRecord(config, "user-1", {}, meta)
+    fetchMock.resetMocks()
+
+    mockAirtableHappyPath({ id: "rec-2", fields: { Name: "Alice" }, createdTime: "x" })
+    await createAirtableRecord(config, "user-1", {}, {
+      ...meta,
+      executionSessionId: "session-2",
+    })
+    const writes = getFetchCalls().filter((c) => c.method === "POST")
+    expect(writes).toHaveLength(1)
   })
 })

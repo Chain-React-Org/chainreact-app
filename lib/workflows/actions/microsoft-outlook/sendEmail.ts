@@ -3,6 +3,9 @@ import { resolveValue } from '../core/resolveValue'
 import { parseRecipients } from '../core/parseRecipients'
 import { refreshAndRetry } from '../core/refreshAndRetry'
 import { ActionResult } from '../core/executeWait'
+import { buildIdempotencyKey, type HandlerExecutionMeta } from '../core/idempotencyKey'
+import { hashPayload } from '../core/hashPayload'
+import { checkReplay, recordFired } from '../core/sessionSideEffects'
 import { FileStorageService } from "@/lib/storage/fileStorage"
 import { deleteWorkflowTempFiles } from '@/lib/utils/workflowFileCleanup'
 import { applyEmailMetaVariables } from '../gmail/resolveEmailMetaVariables'
@@ -15,7 +18,8 @@ import { logger } from '@/lib/utils/logger'
 export async function sendOutlookEmail(
   config: any,
   userId: string,
-  input: Record<string, any>
+  input: Record<string, any>,
+  meta?: HandlerExecutionMeta,
 ): Promise<ActionResult> {
   const cleanupPaths = new Set<string>()
 
@@ -299,6 +303,43 @@ export async function sendOutlookEmail(
       emailData.message.attachments = outlookAttachments
     }
 
+    // Q4 — within-session idempotency. Hash the resolved Graph payload
+    // (recipients + subject + body + attachment names/sizes) so that a
+    // re-resolved template producing the same effective send hashes equal.
+    const idempotencyKey = buildIdempotencyKey(meta)
+    const payloadHash = idempotencyKey
+      ? hashPayload({
+          to: emailData.message.toRecipients.map((r: any) => r.emailAddress.address),
+          cc: emailData.message.ccRecipients.map((r: any) => r.emailAddress.address),
+          bcc: emailData.message.bccRecipients.map((r: any) => r.emailAddress.address),
+          subject: subject ?? '',
+          body: body ?? '',
+          isHtml: !!isHtml,
+          importance,
+          attachments: outlookAttachments.map((a: any) => ({
+            name: a.name,
+            size: typeof a.contentBytes === 'string' ? a.contentBytes.length : 0,
+            contentType: a.contentType,
+          })),
+        })
+      : ''
+
+    if (idempotencyKey) {
+      const replay = await checkReplay(idempotencyKey, payloadHash)
+      if (replay.kind === 'cached') return replay.result
+      if (replay.kind === 'mismatch') {
+        if (cleanupPaths.size > 0) {
+          await deleteWorkflowTempFiles(Array.from(cleanupPaths))
+        }
+        return {
+          success: false,
+          output: {},
+          message: 'This action was already executed for this session with different input.',
+          error: 'PAYLOAD_MISMATCH',
+        }
+      }
+    }
+
     // Send the email using Microsoft Graph API. Wrapped in `refreshAndRetry`
     // (Q3) — a 401 from Graph triggers one refresh+retry attempt.
     const sendResult = await refreshAndRetry({
@@ -363,7 +404,7 @@ export async function sendOutlookEmail(
       logger.debug('[Outlook] Could not retrieve sent message ID:', e)
     }
 
-    return {
+    const actionResult: ActionResult = {
       success: true,
       output: {
         sent: true,
@@ -378,6 +419,16 @@ export async function sendOutlookEmail(
         attachmentCount: outlookAttachments.length
       }
     }
+
+    // Q4 — record the marker on first successful fire.
+    if (idempotencyKey) {
+      await recordFired(idempotencyKey, actionResult, payloadHash, {
+        provider: 'microsoft-outlook',
+        externalId: messageId ?? null,
+      })
+    }
+
+    return actionResult
   } catch (error: any) {
     logger.error('❌ [Outlook] Error sending email:', error)
 

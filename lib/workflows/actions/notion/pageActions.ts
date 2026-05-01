@@ -232,7 +232,8 @@ function createContext(userId: string, input: Record<string, any>): ExecutionCon
 export async function executeNotionCreatePage(
   config: any,
   userId: string,
-  input: Record<string, any>
+  input: Record<string, any>,
+  meta?: import('../core/idempotencyKey').HandlerExecutionMeta,
 ): Promise<ActionResult> {
   const context = createContext(userId, input);
 
@@ -279,7 +280,7 @@ export async function executeNotionCreatePage(
       properties: config.properties
     };
 
-    return await notionCreatePage(createConfig, context);
+    return await notionCreatePage(createConfig, context, meta);
   } catch (error: any) {
     logger.error('Notion create page error:', error);
     return {

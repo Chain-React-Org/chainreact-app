@@ -261,6 +261,79 @@ jest.mock("@/lib/integrations/healthTransitionEngine", () => ({
   }),
 }))
 
+// ─── PR-C4 — session_side_effects idempotency fixtures ─────────────────
+//
+// Mock `checkReplay` / `recordFired` at the module level so handlers can
+// be exercised under the three Q4 outcomes without touching the DB.
+//
+//   - `seedSessionFired({ executionSessionId, nodeId, actionType,
+//      payloadHash, result, externalId? })` registers a stored row. The
+//      next `checkReplay` matching that key returns either `cached`
+//      (matching incoming payloadHash) or `mismatch` (different).
+//   - `setSessionReplayOutcome(key, 'fresh' | 'mismatch')` overrides
+//      the next call to `checkReplay` matching `key`, independent of
+//      seeded rows. Useful for force-mismatch tests that don't want to
+//      construct a full snapshot.
+//   - `getSessionRecordCalls()` returns the captured `recordFired`
+//      payloads in invocation order so tests can assert that the
+//      handler wrote the marker.
+//
+// All state lives in module-scoped maps; `resetHarness()` clears them.
+
+interface SessionSideEffectFixture {
+  result: any
+  payloadHash: string
+  externalId?: string | null
+}
+
+const sessionSideEffectStore = new Map<string, SessionSideEffectFixture>()
+const sessionForcedOutcomes = new Map<string, "fresh" | "mismatch">()
+const sessionRecordCalls: Array<{
+  key: any
+  result: any
+  payloadHash: string
+  options?: any
+}> = []
+
+function sessionKeyString(key: {
+  executionSessionId: string
+  nodeId: string
+  actionType: string
+}): string {
+  return `${key.executionSessionId}:${key.nodeId}:${key.actionType}`
+}
+
+jest.mock("@/lib/workflows/actions/core/sessionSideEffects", () => ({
+  checkReplay: jest.fn(async (key: any, payloadHash: string) => {
+    const k = sessionKeyString(key)
+    const forced = sessionForcedOutcomes.get(k)
+    if (forced) {
+      sessionForcedOutcomes.delete(k)
+      if (forced === "mismatch") {
+        return { kind: "mismatch", storedHash: "forced-mismatch" }
+      }
+      return { kind: "fresh" }
+    }
+    const fixture = sessionSideEffectStore.get(k)
+    if (!fixture) return { kind: "fresh" }
+    if (fixture.payloadHash !== payloadHash) {
+      return { kind: "mismatch", storedHash: fixture.payloadHash }
+    }
+    return { kind: "cached", result: fixture.result }
+  }),
+  recordFired: jest.fn(
+    async (key: any, result: any, payloadHash: string, options?: any) => {
+      sessionRecordCalls.push({ key, result, payloadHash, options })
+      // Mirror real behaviour: subsequent checkReplay sees the recorded row.
+      sessionSideEffectStore.set(sessionKeyString(key), {
+        result,
+        payloadHash,
+        externalId: options?.externalId ?? null,
+      })
+    },
+  ),
+}))
+
 // Stub admin Supabase client so `refreshAndRetry`'s default integration
 // lookup returns a row matching the harness's mock integration. Tests that
 // override the integration via `setMockIntegration` are reflected here too.
@@ -351,6 +424,99 @@ export function getHealthEngineCalls(): Array<{
   return [...healthEngineCallLog]
 }
 
+// ─── PR-C4 — session_side_effects public API ───────────────────────────
+
+export interface SessionSideEffectKey {
+  executionSessionId: string
+  nodeId: string
+  actionType: string
+}
+
+/**
+ * PR-C4 — pre-populate the in-memory session_side_effects store with a
+ * stored marker. The next `checkReplay` invoked by the handler under
+ * test for the matching `(executionSessionId, nodeId, actionType)`
+ * tuple returns:
+ *   - `{kind: 'cached', result}` when the handler computes the same
+ *     `payloadHash` (Q4 — replay path; no provider call should fire),
+ *   - `{kind: 'mismatch', storedHash}` when the handler computes a
+ *     different `payloadHash` (Q4 — PAYLOAD_MISMATCH; no provider
+ *     call should fire).
+ */
+export function seedSessionFired(opts: {
+  executionSessionId: string
+  nodeId: string
+  actionType: string
+  payloadHash: string
+  result: any
+  externalId?: string | null
+}): void {
+  const key: SessionSideEffectKey = {
+    executionSessionId: opts.executionSessionId,
+    nodeId: opts.nodeId,
+    actionType: opts.actionType,
+  }
+  sessionSideEffectStore.set(sessionKeyString(key), {
+    result: opts.result,
+    payloadHash: opts.payloadHash,
+    externalId: opts.externalId ?? null,
+  })
+}
+
+/**
+ * PR-C4 — force the next `checkReplay` for the supplied key to return
+ * the given outcome, regardless of any seeded row. Useful for tests
+ * that want to assert PAYLOAD_MISMATCH branching without computing a
+ * full mismatching hash.
+ */
+export function setSessionReplayOutcome(
+  key: SessionSideEffectKey,
+  outcome: "fresh" | "mismatch",
+): void {
+  sessionForcedOutcomes.set(sessionKeyString(key), outcome)
+}
+
+/**
+ * PR-C4 — return the captured `recordFired` invocations in call order
+ * so tests can assert the handler persisted the side-effect marker
+ * with the expected key, payloadHash, externalId, and result snapshot.
+ */
+export function getSessionRecordCalls(): Array<{
+  key: any
+  result: any
+  payloadHash: string
+  options?: any
+}> {
+  return [...sessionRecordCalls]
+}
+
+/**
+ * PR-C4 — convenience builder for the meta param every test passes to
+ * a handler. Returns the canonical `HandlerExecutionMeta` shape so
+ * call-sites stay tidy.
+ */
+export function makeMeta(overrides: Partial<{
+  executionSessionId: string
+  nodeId: string
+  actionType: string
+  provider: string
+  testMode: boolean
+}> = {}): {
+  executionSessionId: string
+  nodeId: string
+  actionType: string
+  provider?: string
+  testMode?: boolean
+} {
+  return {
+    executionSessionId: overrides.executionSessionId ?? "session-test-1",
+    nodeId: overrides.nodeId ?? "node-test-1",
+    actionType: overrides.actionType ?? "unspecified_action_type",
+    provider: overrides.provider,
+    testMode: overrides.testMode,
+  }
+}
+
 /**
  * Reset all harness state between tests. Call this in `afterEach`.
  *
@@ -377,6 +543,41 @@ export function resetHarness(): void {
   const exec = require("@/lib/workflows/executeNode")
   ;(exec.getIntegrationById as jest.Mock).mockImplementation(
     async () => mockIntegrationValue,
+  )
+
+  // PR-C4 — clear session_side_effects fixtures.
+  sessionSideEffectStore.clear()
+  sessionForcedOutcomes.clear()
+  sessionRecordCalls.length = 0
+  const sseMod = require("@/lib/workflows/actions/core/sessionSideEffects")
+  ;(sseMod.checkReplay as jest.Mock).mockImplementation(
+    async (key: any, payloadHash: string) => {
+      const k = sessionKeyString(key)
+      const forced = sessionForcedOutcomes.get(k)
+      if (forced) {
+        sessionForcedOutcomes.delete(k)
+        if (forced === "mismatch") {
+          return { kind: "mismatch", storedHash: "forced-mismatch" }
+        }
+        return { kind: "fresh" }
+      }
+      const fixture = sessionSideEffectStore.get(k)
+      if (!fixture) return { kind: "fresh" }
+      if (fixture.payloadHash !== payloadHash) {
+        return { kind: "mismatch", storedHash: fixture.payloadHash }
+      }
+      return { kind: "cached", result: fixture.result }
+    },
+  )
+  ;(sseMod.recordFired as jest.Mock).mockImplementation(
+    async (key: any, result: any, payloadHash: string, options?: any) => {
+      sessionRecordCalls.push({ key, result, payloadHash, options })
+      sessionSideEffectStore.set(sessionKeyString(key), {
+        result,
+        payloadHash,
+        externalId: options?.externalId ?? null,
+      })
+    },
   )
 
   // Re-establish refresh / health-engine mock implementations cleared by

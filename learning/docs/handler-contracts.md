@@ -134,32 +134,65 @@ Some providers surface 401s as raw `Response { status: 401 }` (Stripe REST, Noti
 
 ### Persistence
 
-A dedicated `session_side_effects` table with `UNIQUE (execution_session_id, node_id, action_type)`. Schema and full design in [`session-side-effects-design.md`](session-side-effects-design.md) (created in PR-C4-DESIGN).
+A dedicated `session_side_effects` table with `UNIQUE (execution_session_id, node_id, action_type)`. Schema and full design in [`session-side-effects-design.md`](session-side-effects-design.md). Hash mismatch on replay is **hard-fail** — `checkReplay` returns `{kind: 'mismatch'}` and the handler returns a standardized `PAYLOAD_MISMATCH` failure rather than firing the side effect with mutated input.
 
 ### Provider-side idempotency
 
-Where the provider supports it (Stripe `Idempotency-Key`), the handler ALSO sets the provider header to `<sessionId>:<nodeId>` even on replay. Defense in depth — if our internal record is somehow missing, the provider's own idempotency mechanism still prevents a double-charge.
+Where the provider supports it (Stripe `Idempotency-Key`), the handler ALSO sets the provider header to `<sessionId>:<nodeId>:<actionType>` even on replay. Defense in depth — if our internal record is somehow missing, the provider's own idempotency mechanism still prevents a double-charge.
+
+### How handlers receive the key
+
+The engine threads `HandlerExecutionMeta` alongside `(config, userId, input)` to every action handler:
+
+```ts
+export interface HandlerExecutionMeta {
+  executionSessionId?: string
+  nodeId?: string
+  actionType?: string
+  provider?: string
+  testMode?: boolean
+}
+```
+
+Positional handlers take `(config, userId, input, meta?)`. Object-style handlers (Gmail) take `({ config, userId, input, meta })`. `meta` is optional and absent in test-only paths — `buildIdempotencyKey` returns `null` in that case and handlers fire without idempotency.
 
 ### Replay contract
 
 ```ts
-const key = buildIdempotencyKey(context)
-if (await hasFired(key)) {
-  const cached = await loadFired(key)
-  if (cached) return cached  // replay path — no provider call
+const key = buildIdempotencyKey(meta)
+if (key) {
+  const payloadHash = hashPayload(canonicalInput)
+  const replay = await checkReplay(key, payloadHash)
+  switch (replay.kind) {
+    case 'cached':
+      return replay.result   // replay path — no provider call
+    case 'mismatch':
+      return {
+        success: false,
+        category: 'idempotency',
+        error: { code: 'PAYLOAD_MISMATCH' },
+        message: 'This action was already executed for this session with different input.',
+      }
+    case 'fresh':
+      break  // fall through and perform the side effect
+  }
 }
 // … perform the side effect …
 const result = await callProvider(...)
-await recordFired(key, result, externalId)
+if (key) {
+  await recordFired(key, result, payloadHash, { externalId, provider })
+}
 return result
 ```
 
-`loadFired` returns the full `ActionResult` from the first fire (stored in `result_snapshot` JSONB). Downstream nodes see the same `output` they would have on the original run.
+`checkReplay` returns the stored `ActionResult` from `result_snapshot` verbatim on the cached path. Downstream nodes see the same `output` they would have on the original run.
 
 ### Implementation files
 
 - Key builder: [`lib/workflows/actions/core/idempotencyKey.ts`](../../lib/workflows/actions/core/idempotencyKey.ts) (created in PR-C4)
+- Hash helper: [`lib/workflows/actions/core/hashPayload.ts`](../../lib/workflows/actions/core/hashPayload.ts) (created in PR-C4)
 - Side-effects API: [`lib/workflows/actions/core/sessionSideEffects.ts`](../../lib/workflows/actions/core/sessionSideEffects.ts) (created in PR-C4)
+- Retention sweep: [`app/api/cron/clean-session-side-effects/route.ts`](../../app/api/cron/clean-session-side-effects/route.ts) — daily, env var `SESSION_SIDE_EFFECTS_RETENTION_DAYS` (default 30)
 
 ---
 

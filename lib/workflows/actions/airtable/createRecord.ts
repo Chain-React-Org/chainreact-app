@@ -1,6 +1,9 @@
 import { Buffer } from 'buffer'
 import { getDecryptedAccessToken, resolveValue, ActionResult } from '@/lib/workflows/actions/core'
 import { refreshAndRetry } from '@/lib/workflows/actions/core/refreshAndRetry'
+import { buildIdempotencyKey, type HandlerExecutionMeta } from '@/lib/workflows/actions/core/idempotencyKey'
+import { hashPayload } from '@/lib/workflows/actions/core/hashPayload'
+import { checkReplay, recordFired } from '@/lib/workflows/actions/core/sessionSideEffects'
 import {
   deleteTempAttachments,
   scheduleTempAttachmentCleanup,
@@ -431,7 +434,8 @@ export async function resolveAttachmentEntry(
 export async function createAirtableRecord(
   config: any,
   userId: string,
-  input: Record<string, any>
+  input: Record<string, any>,
+  meta?: HandlerExecutionMeta,
 ): Promise<ActionResult> {
   const cleanupPaths: string[] = []
   let recordCreated = false
@@ -751,6 +755,31 @@ export async function createAirtableRecord(
 
     logger.info(`📊 [Airtable] Sending request to table: ${tableName}`)
 
+    // Q4 — within-session idempotency. Hash the resolved record body +
+    // table identifiers. Done AFTER attachment uploads complete so the
+    // hash reflects the final attachment-resolved field values.
+    const idempotencyKey = buildIdempotencyKey(meta)
+    const payloadHash = idempotencyKey
+      ? hashPayload({
+          baseId,
+          tableName,
+          tableId: resolvedTableId ?? null,
+          fields: resolvedFields,
+        })
+      : ''
+
+    if (idempotencyKey) {
+      const replay = await checkReplay(idempotencyKey, payloadHash)
+      if (replay.kind === 'cached') return replay.result
+      if (replay.kind === 'mismatch') {
+        return {
+          success: false,
+          message: 'This action was already executed for this session with different input.',
+          error: 'PAYLOAD_MISMATCH',
+        }
+      }
+    }
+
     // Q3 — wrap the create-record POST in refreshAndRetry. Airtable is
     // OAuth-with-refresh; on 401 the wrapper refreshes once and retries.
     const writeResult = await refreshAndRetry({
@@ -800,7 +829,7 @@ export async function createAirtableRecord(
     logger.info(`📊 [Airtable] Record created successfully with ID: ${result.id}`)
     recordCreated = true
 
-    return {
+    const actionResult: ActionResult = {
       success: true,
       output: {
         recordId: result.id,
@@ -811,6 +840,15 @@ export async function createAirtableRecord(
       },
       message: `Successfully created record in ${tableName}`
     }
+
+    if (idempotencyKey) {
+      await recordFired(idempotencyKey, actionResult, payloadHash, {
+        provider: 'airtable',
+        externalId: result.id ?? null,
+      })
+    }
+
+    return actionResult
 
   } catch (error: any) {
     logger.error("Airtable create record error:", error)

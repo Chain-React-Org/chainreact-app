@@ -17,6 +17,9 @@ import {
   mockGmailApi,
   setMockTokenRefreshOutcome,
   getHealthEngineCalls,
+  seedSessionFired,
+  setSessionReplayOutcome,
+  getSessionRecordCalls,
 } from "../helpers/actionTestHarness"
 
 import { sendGmailEmail } from "@/lib/workflows/actions/gmail/sendEmail"
@@ -367,5 +370,120 @@ describe("sendGmailEmail — Q3 — 401 handling", () => {
     const signals = getHealthEngineCalls()
     expect(signals).toHaveLength(1)
     expect(signals[0].signal.classifiedError.requiresUserAction).toBe(true)
+  })
+})
+
+// Q4 — within-session idempotency.
+// `meta` carries the engine-thread (executionSessionId, nodeId, actionType).
+// First fire records a marker; same key + same payload returns the cached
+// result with no second SDK call; same key + DIFFERENT payload returns
+// PAYLOAD_MISMATCH; different sessionId fires again.
+// See learning/docs/handler-contracts.md Q4.
+describe("sendGmailEmail — Q4 — idempotency within session", () => {
+  const meta = {
+    executionSessionId: "session-1",
+    nodeId: "node-A",
+    actionType: "gmail_action_send_email",
+    provider: "gmail",
+  }
+
+  test("first invocation fires the SDK and records the side-effect marker", async () => {
+    mockGmailApi.users.messages.send.mockResolvedValue({
+      data: { id: "msg-fresh-1", threadId: "thr" },
+    })
+
+    const result = await sendGmailEmail({
+      config: { to: "alice@x.com", subject: "S", body: "B" },
+      userId: "user-1",
+      input: {},
+      meta,
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockGmailApi.users.messages.send).toHaveBeenCalledTimes(1)
+    const records = getSessionRecordCalls()
+    expect(records).toHaveLength(1)
+    expect(records[0].key).toEqual({
+      executionSessionId: "session-1",
+      nodeId: "node-A",
+      actionType: "gmail_action_send_email",
+    })
+    expect(records[0].options?.provider).toBe("gmail")
+    expect(records[0].options?.externalId).toBe("msg-fresh-1")
+  })
+
+  test("replay with same key + matching payload returns cached result, no SDK call", async () => {
+    // First fire populates the store via the real recordFired path (the
+    // harness mirrors recordFired into the in-memory map). The second
+    // invocation with identical config hashes equal and returns cached.
+    mockGmailApi.users.messages.send.mockResolvedValue({
+      data: { id: "msg-first", threadId: "thr-first" },
+    })
+    const config = { to: "alice@x.com", subject: "S", body: "B" }
+    const first = await sendGmailEmail({ config, userId: "user-1", input: {}, meta })
+    expect(first.success).toBe(true)
+
+    mockGmailApi.users.messages.send.mockClear()
+    const second = await sendGmailEmail({ config, userId: "user-1", input: {}, meta })
+    expect(second.success).toBe(true)
+    // No second SDK call — cached path.
+    expect(mockGmailApi.users.messages.send).not.toHaveBeenCalled()
+    // Output preserved verbatim from the first fire.
+    expect(second.output?.messageId).toBe(first.output?.messageId)
+  })
+
+  test("same key + DIFFERENT payload returns PAYLOAD_MISMATCH, no SDK call", async () => {
+    // Force the next checkReplay for this key to return mismatch.
+    setSessionReplayOutcome(
+      {
+        executionSessionId: meta.executionSessionId,
+        nodeId: meta.nodeId,
+        actionType: meta.actionType,
+      },
+      "mismatch",
+    )
+
+    const result = await sendGmailEmail({
+      config: { to: "alice@x.com", subject: "S", body: "B" },
+      userId: "user-1",
+      input: {},
+      meta,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe("PAYLOAD_MISMATCH")
+    expect(result.message).toMatch(/already executed.*different input/i)
+    expect(mockGmailApi.users.messages.send).not.toHaveBeenCalled()
+  })
+
+  test("different sessionId fires the SDK again (manual rerun is a new session)", async () => {
+    mockGmailApi.users.messages.send.mockResolvedValue({ data: { id: "msg-1" } })
+
+    const config = { to: "alice@x.com", subject: "S", body: "B" }
+    await sendGmailEmail({ config, userId: "user-1", input: {}, meta })
+    mockGmailApi.users.messages.send.mockClear()
+
+    // Different executionSessionId — this is a rerun; the action MUST fire.
+    mockGmailApi.users.messages.send.mockResolvedValue({ data: { id: "msg-rerun" } })
+    await sendGmailEmail({
+      config,
+      userId: "user-1",
+      input: {},
+      meta: { ...meta, executionSessionId: "session-2" },
+    })
+    expect(mockGmailApi.users.messages.send).toHaveBeenCalledTimes(1)
+  })
+
+  test("absent meta makes idempotency a no-op (test/non-engine paths) — no recordFired", async () => {
+    mockGmailApi.users.messages.send.mockResolvedValue({ data: { id: "msg-no-meta" } })
+
+    await sendGmailEmail({
+      config: { to: "alice@x.com", subject: "S", body: "B" },
+      userId: "user-1",
+      input: {},
+      // no meta
+    })
+
+    expect(getSessionRecordCalls()).toHaveLength(0)
   })
 })

@@ -693,8 +693,25 @@ export async function executeAction({ node, input, userId, workflowId, testMode,
     userId
   }
 
+  // PR-C4 — engine-thread metadata for within-session idempotency. Handlers
+  // that opt in (those updated under PR-C4) read `params.meta` to build
+  // their `(executionSessionId, nodeId, actionType)` idempotency key. Older
+  // handlers that don't read `meta` ignore this field.
+  const handlerMeta = {
+    executionSessionId: input?.executionId,
+    nodeId: node.id,
+    actionType: type,
+    testMode,
+  }
+
   try {
-    const result = await handler({ config: processedConfig, userId, input, context: executionContext })
+    const result = await handler({
+      config: processedConfig,
+      userId,
+      input,
+      context: executionContext,
+      meta: handlerMeta,
+    })
     const executionTime = Date.now() - startTime
 
     // CRITICAL: Check if the action actually succeeded

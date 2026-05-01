@@ -348,7 +348,15 @@ export class IntegrationNodeHandlers {
 
         case 'microsoft-outlook_action_send_email': {
           const { sendOutlookEmail } = await import('@/lib/workflows/actions/microsoft-outlook')
-          const result = await sendOutlookEmail(config, context.userId, context.data || {})
+          // PR-C4 — engine metadata for within-session idempotency.
+          const meta = {
+            executionSessionId: context.executionId,
+            nodeId: node.id,
+            actionType: node.data?.type ?? nodeType,
+            provider: 'microsoft-outlook',
+            testMode: context.testMode,
+          }
+          const result = await sendOutlookEmail(config, context.userId, context.data || {}, meta)
           if (!result?.success) {
             throw new Error(result?.message || 'Failed to send Outlook email')
           }
@@ -758,10 +766,19 @@ export class IntegrationNodeHandlers {
         // Import and use the actual Airtable create record handler
         const { createAirtableRecord } = await import("@/lib/workflows/actions/airtable/createRecord")
 
+        // PR-C4 — engine metadata for within-session idempotency.
+        const airtableMeta = {
+          executionSessionId: context.executionId,
+          nodeId: node.id,
+          actionType: node.data?.type ?? nodeType,
+          provider: 'airtable',
+          testMode: context.testMode,
+        }
         const createResult = await createAirtableRecord(
           config,
           context.userId,
-          context.data || {}
+          context.data || {},
+          airtableMeta
         )
 
         if (!createResult.success) {

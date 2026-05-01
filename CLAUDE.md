@@ -259,6 +259,15 @@ Schema-declared multi-recipient / multi-value fields (Gmail / Outlook `to`/`cc`/
 - Auxiliary calls (header GETs, metadata fetches, post-send lookups) are NOT yet wrapped — see [`/learning/docs/pre-launch-cleanup.md`](./learning/docs/pre-launch-cleanup.md) §A5.
 - See [`/learning/docs/handler-contracts.md`](./learning/docs/handler-contracts.md) Q3.
 
+## Within-Session Idempotency — session_side_effects (Q4)
+- Every action handler's **principal outbound write call** must bracket itself with `checkReplay`/`recordFired` from [`lib/workflows/actions/core/sessionSideEffects.ts`](./lib/workflows/actions/core/sessionSideEffects.ts), keyed on `(executionSessionId, nodeId, actionType)` via `buildIdempotencyKey(meta)`.
+- The engine threads `HandlerExecutionMeta` (`executionSessionId` / `nodeId` / `actionType` / `provider` / `testMode`) alongside `(config, userId, input)`. Positional handlers take `(config, userId, input, meta?)`; object-style handlers (Gmail) take `({ config, userId, input, meta })`. Absent meta → idempotency is a no-op (test / non-engine paths).
+- `checkReplay` outcomes: **cached** → return stored `ActionResult` verbatim, NO provider call. **mismatch** → return standardized `PAYLOAD_MISMATCH` failure (`error: 'PAYLOAD_MISMATCH'`), NO provider call. **fresh** → fire normally, then `recordFired(key, result, payloadHash, { provider, externalId })`.
+- Hashing uses [`hashPayload`](./lib/workflows/actions/core/hashPayload.ts) — SHA-256 of canonical-form (sorted-keys) JSON. Hash the resolved input that determines the side effect; exclude non-deterministic fields (e.g. Calendar `conferenceData.requestId` carries `Date.now()`).
+- Stripe additionally sets `Idempotency-Key: ${executionSessionId}:${nodeId}:${actionType}` on the outbound POST as defense in depth (via `formatProviderIdempotencyKey`).
+- Retention: daily cron at [`/api/cron/clean-session-side-effects`](./app/api/cron/clean-session-side-effects/route.ts) (env var `SESSION_SIDE_EFFECTS_RETENTION_DAYS`, default 30). FK `ON DELETE CASCADE` on `workflow_execution_sessions(id)` cleans up parent-deleted sessions automatically.
+- See [`/learning/docs/handler-contracts.md`](./learning/docs/handler-contracts.md) Q4 and [`/learning/docs/session-side-effects-design.md`](./learning/docs/session-side-effects-design.md).
+
 ## Variable Resolution — Strict at Runtime, Soft at Design-Time
 - Runtime workflow execution uses **strict pre-resolution** at the engine layer (`nodeExecutionService.executeNodeByType`) via `DataFlowManager.resolveObjectStrict`. Missing `{{...}}` references become the standardized **config-failure shape** (`{success:false, category:'config', error:{code:'MISSING_VARIABLE', path}, message}`) **before** action / integration handler dispatch — handlers never see unresolved templates at runtime.
 - Design-time / preview / planner / AI-agent suggestion flows continue to use the **soft** `resolveValue` / `resolveValueWithTracking` (returns `undefined` or preserves the literal `{{...}}`, optionally populating an `unresolvedCollector`).

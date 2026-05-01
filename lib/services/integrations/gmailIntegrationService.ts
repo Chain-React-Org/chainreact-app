@@ -104,11 +104,21 @@ export class GmailIntegrationService {
     // Import and use the actual Gmail send implementation directly
     const { sendGmailEmail } = await import('@/lib/workflows/actions/gmail/sendEmail')
 
+    // PR-C4 — thread engine metadata for within-session idempotency.
+    const meta = {
+      executionSessionId: context.executionId,
+      nodeId: node.id,
+      actionType: node.data?.type,
+      provider: 'gmail',
+      testMode: context.testMode,
+    }
+
     // Call the Gmail send function with proper params object structure
     const result = await sendGmailEmail({
       config: resolvedConfig, // Pass the resolved config
       userId: context.userId, // Pass the userId from context
-      input: context.data || {} // Pass context data as input
+      input: context.data || {}, // Pass context data as input
+      meta,
     })
 
     // Check if the action failed and throw error
