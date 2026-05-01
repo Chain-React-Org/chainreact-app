@@ -1,0 +1,72 @@
+# Test infrastructure for ChainReact (PR-E).
+#
+# Three services that infra-bound tests need:
+#   1. postgres   — a real Postgres 16 to exercise migrations, RLS,
+#                   and atomic RPCs without hitting hosted Supabase.
+#   2. mailhog    — SMTP capture + HTTP API. Stands in for Resend so
+#                   tests can assert "this email was sent with
+#                   <these headers> and <this body>" without paying
+#                   per-test or polluting an inbox.
+#   3. stripe-mock — official Stripe API simulator. Lets us run the
+#                    full SDK / webhook signature path against a
+#                    deterministic local endpoint.
+#
+# Bring the stack up:
+#   npm run test:infra:up
+# Run smoke tests against the live stack:
+#   npm run test:infra
+# Tear it down (and wipe data):
+#   npm run test:infra:down
+#
+# Out of scope: hosted OAuth provider sandboxes (Google / Microsoft /
+# Slack). Those need real credentials provisioned by the team — see
+# learning/docs/test-infra-credentials.md.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: chainreact-test-postgres
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: chainreact_test
+    ports:
+      # 54329 keeps it off both the default 5432 and the Supabase-CLI
+      # default 54322 so a developer running `supabase start` locally
+      # doesn't conflict.
+      - "54329:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d chainreact_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: chainreact-test-mailhog
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # HTTP UI + API
+    healthcheck:
+      # MailHog has no built-in health endpoint; the HTTP API on /api/v2/messages
+      # returning 200 is a good proxy for "running".
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8025/api/v2/messages"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  stripe-mock:
+    # Pinned digest for reproducibility — Stripe ships breaking changes
+    # to the schema fixture occasionally. Bump deliberately.
+    image: stripe/stripe-mock:latest
+    container_name: chainreact-test-stripe-mock
+    ports:
+      - "12111:12111" # HTTP
+      - "12112:12112" # HTTPS (self-signed)
+    healthcheck:
+      # stripe-mock returns 401 on unauthenticated GETs to the root,
+      # which is good enough for a liveness check (the port answers).
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:12111/v1/charges || test $$? -eq 6 -o $$? -eq 8"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

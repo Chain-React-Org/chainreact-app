@@ -3,6 +3,11 @@ module.exports = {
   testEnvironment: "node",
   roots: ["<rootDir>/__tests__"],
   testMatch: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+  // Infra-bound tests require the Docker stack from docker-compose.test.yml.
+  // They live under __tests__/infra/ and have a `.infra.test.ts` suffix; the
+  // default suite skips them so `npm run test:all` works without Docker.
+  // Run them via `npm run test:infra` instead. PR-E.
+  testPathIgnorePatterns: ["/node_modules/", "/__tests__/infra/"],
   transform: {
     "^.+\\.(t|j)sx?$": [
       "ts-jest",

@@ -69,3 +69,27 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+
+  # PR-E — Infrastructure-bound tests. Brings up Postgres + MailHog +
+  # stripe-mock from docker-compose.test.yml and runs the smoke suite.
+  # The full suite of infra tests lands in PR-F; today this job verifies
+  # only that the harnesses can connect.
+  infra-tests:
+    name: Infrastructure Smoke Tests
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Bring up test infrastructure
+        run: npm run test:infra:up
+      - name: Run infra smoke tests
+        run: npm run test:infra
+      - name: Tear down test infrastructure
+        if: always()
+        run: npm run test:infra:down
