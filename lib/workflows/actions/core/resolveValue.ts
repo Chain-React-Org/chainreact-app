@@ -100,6 +100,65 @@ export interface UnresolvedVariableRef {
 }
 
 /**
+ * Thrown by `resolveValueStrict` (and runtime callers that opt into strict
+ * resolution) when a `{{...}}` reference cannot be resolved against the
+ * provided input. Carries the missing path so the engine layer can convert
+ * it to the standardized config-failure shape (Q2):
+ *
+ *   { success: false, category: 'config',
+ *     error: { code: 'MISSING_VARIABLE', path },
+ *     message: 'Variable "<path>" not found in input.' }
+ *
+ * Soft-mode callers (`resolveValue`, `resolveValueWithTracking`) never throw
+ * this — they continue to return undefined / the literal template, and
+ * surface the miss via the optional `unresolvedCollector`. Strict-mode is
+ * opt-in: handlers do NOT need to catch this; the handler-invocation site
+ * (`nodeExecutionService.executeNodeByType`) catches and converts.
+ *
+ * Contract: see `learning/docs/handler-contracts.md` Q2.
+ */
+export class MissingVariableError extends Error {
+  readonly code: 'MISSING_VARIABLE' = 'MISSING_VARIABLE'
+  readonly path: string
+
+  constructor(path: string) {
+    super(`Variable "${path}" not found in input.`)
+    this.name = 'MissingVariableError'
+    this.path = path
+    // Preserve prototype for `instanceof` across transpile targets.
+    Object.setPrototypeOf(this, MissingVariableError.prototype)
+  }
+}
+
+/**
+ * Strict counterpart to `resolveValue`. Same template-parsing logic, but
+ * throws `MissingVariableError` on the first unresolved `{{...}}` reference
+ * — covering both full-template (`{{x}}`) and embedded (`prefix {{x}} suffix`)
+ * positions, and recursing through arrays / objects exactly like the soft path.
+ *
+ * Implementation reuses `resolveValueWithTracking` so the parsing rules stay
+ * unified — every case the soft path treats as a miss becomes a strict throw.
+ *
+ * Use this from runtime call paths only. Design-time callers (preview,
+ * planner, builder, AI agent suggestions) keep using the soft `resolveValue`
+ * so they can surface unresolved references as warnings rather than crashes.
+ */
+export function resolveValueStrict(
+  value: any,
+  input: Record<string, any>,
+  mockTriggerOutputs?: Record<string, any>
+): any {
+  const { resolved, unresolvedRefs } = resolveValueWithTracking(value, input, mockTriggerOutputs)
+  if (unresolvedRefs.length > 0) {
+    const first = unresolvedRefs[0]
+    // `reference` is in `{{path}}` form; strip the braces to expose the path.
+    const path = first.reference.replace(/^\{\{/, '').replace(/\}\}$/, '').trim()
+    throw new MissingVariableError(path)
+  }
+  return resolved
+}
+
+/**
  * Resolves a value and returns both the resolved result and any unresolved variable references.
  * Use this when you need to detect and surface unresolved {{...}} references.
  */

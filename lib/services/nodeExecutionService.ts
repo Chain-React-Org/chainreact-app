@@ -5,6 +5,7 @@ import { IntegrationNodeHandlers } from "./executionHandlers/integrationHandlers
 import { ExecutionContext } from "./workflowExecutionService"
 import { executionHistoryService } from "./executionHistoryService"
 import { ActionTestMode } from "./testMode/types"
+import { MissingVariableError } from "@/lib/workflows/actions/core/resolveValue"
 
 import { logger } from '@/lib/utils/logger'
 import { filterConnectionsForNode } from './utils/connectionRouting'
@@ -290,18 +291,85 @@ export class NodeExecutionService {
 
     // Route to appropriate handler based on node type
     if (this.isTriggerNode(nodeType)) {
+      // Triggers source data — they don't consume `{{...}}` references.
+      // Skip strict pre-resolution for them.
       return await this.triggerHandlers.execute(node, context)
     }
 
+    // Action and integration nodes consume variables via `node.data.config`.
+    // Strictly pre-resolve every `{{...}}` reference at the engine boundary
+    // so missing variables fail loudly (Q2) — the standardized config-failure
+    // shape replaces silent `undefined` propagation into provider calls.
+    //
+    // Handlers continue to call the soft `resolveValue(...)` internally; on
+    // a pre-resolved (concrete) value those calls are no-ops, so this layer
+    // adds strict semantics without touching handler code.
+    const dispatchNode = this.preResolveConfigStrict(node, context)
+    if (this.isMissingVariableFailure(dispatchNode)) {
+      return dispatchNode
+    }
+
     if (this.isActionNode(nodeType)) {
-      return await this.actionHandlers.execute(node, allNodes, connections, context)
+      return await this.actionHandlers.execute(dispatchNode, allNodes, connections, context)
     }
 
     if (this.isIntegrationNode(nodeType)) {
-      return await this.integrationHandlers.execute(node, context)
+      return await this.integrationHandlers.execute(dispatchNode, context)
     }
 
     throw new Error(`Unknown node type: ${nodeType}`)
+  }
+
+  /**
+   * Strictly pre-resolve a node's config via `dataFlowManager.resolveObjectStrict`.
+   * On a `MissingVariableError`, returns the standardized config-failure shape
+   * (Q2) so the caller can short-circuit dispatch. On success, returns a
+   * shallow-cloned node with the resolved config (the original node object is
+   * left intact for any caller that holds a reference to it).
+   *
+   * If `context.dataFlowManager` is absent (e.g., test-only paths that don't
+   * spin up a full DataFlowManager) or the node has no config, the original
+   * node is returned unchanged — strict semantics require state to compare
+   * against, so without a DataFlowManager we fall back to whatever resolution
+   * the handler does internally.
+   *
+   * Other thrown errors propagate up to `executeNode`'s outer catch, which
+   * preserves the existing internal-error path (Q1).
+   */
+  private preResolveConfigStrict(node: any, context: ExecutionContext): any {
+    const config = node?.data?.config
+    if (!context.dataFlowManager || !config || typeof config !== 'object') {
+      return node
+    }
+
+    try {
+      const resolvedConfig = context.dataFlowManager.resolveObjectStrict(config)
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          config: resolvedConfig,
+        },
+      }
+    } catch (err) {
+      if (err instanceof MissingVariableError) {
+        logger.warn(`⚠️ Node ${node.id} blocked by missing variable: ${err.path}`)
+        return {
+          success: false,
+          category: 'config' as const,
+          error: {
+            code: err.code,
+            path: err.path,
+          },
+          message: err.message,
+        }
+      }
+      throw err
+    }
+  }
+
+  private isMissingVariableFailure(value: any): boolean {
+    return !!(value && value.success === false && value.category === 'config' && value.error?.code === 'MISSING_VARIABLE')
   }
 
   private async executeConnectedNodes(

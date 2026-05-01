@@ -246,6 +246,16 @@ useEffect(() => {
 
 # SECTION 6 — INTEGRATIONS
 
+## Handler Contracts (source of truth)
+Every workflow action handler must follow the documented behavioral contracts in [`/learning/docs/handler-contracts.md`](./learning/docs/handler-contracts.md) — failure modes, variable resolution, 401 handling, idempotency, multi-recipient parsing, safety floors, and more. Tests cite contracts by Q-number. Contract first, then tests, then source — never reverse.
+
+## Variable Resolution — Strict at Runtime, Soft at Design-Time
+- Runtime workflow execution uses **strict pre-resolution** at the engine layer (`nodeExecutionService.executeNodeByType`) via `DataFlowManager.resolveObjectStrict`. Missing `{{...}}` references become the standardized **config-failure shape** (`{success:false, category:'config', error:{code:'MISSING_VARIABLE', path}, message}`) **before** action / integration handler dispatch — handlers never see unresolved templates at runtime.
+- Design-time / preview / planner / AI-agent suggestion flows continue to use the **soft** `resolveValue` / `resolveValueWithTracking` (returns `undefined` or preserves the literal `{{...}}`, optionally populating an `unresolvedCollector`).
+- Handlers do NOT catch `MissingVariableError` themselves — the engine layer owns the catch-and-convert.
+- Direct handler tests (`__tests__/nodes/*`) do not need to assert missing-variable engine wrapping; engine-level tests in `__tests__/workflows/engine-missing-variable.test.ts` own that contract.
+- See [`/learning/docs/handler-contracts.md`](./learning/docs/handler-contracts.md) (Q2) and [`/learning/docs/resolver-consolidation-design.md`](./learning/docs/resolver-consolidation-design.md).
+
 ## Webhook-First Rule
 **Always use webhooks over polling when available.** Only use polling if no webhook exists or webhook requires enterprise plan.
 

@@ -6,7 +6,7 @@
  */
 
 import { getIntegrationCredentials } from "@/lib/integrations/getDecryptedAccessToken"
-import { resolveValue } from "@/lib/integrations/resolveValue"
+import { resolveValue } from "@/lib/workflows/actions/core/resolveValue"
 
 import { logger } from '@/lib/utils/logger'
 
