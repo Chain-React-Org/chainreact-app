@@ -2938,7 +2938,7 @@ export function WorkflowBuilderV2({ flowId, initialRevision, initialStatus }: Wo
 
     try {
       // Use atomic batch: addNode + disconnect old edge (if inserting) + connect new edges
-      const nodeId = generateId(nodeType.replace(/\W+/g, "-") || "node")
+      const nodeId = generateId()
       const addEdit = addNodeEdit(nodeType, position, nodeId)
       const edits: any[] = [addEdit]
 
@@ -4333,7 +4333,7 @@ export function WorkflowBuilderV2({ flowId, initialRevision, initialStatus }: Wo
         // Not changing an existing node - use atomic batch operation
         // This ensures addNode + edge changes happen in a single applyEdits call,
         // preventing stale edges and double plus buttons
-        const nodeId = generateId(nodeData.type.replace(/\W+/g, "-") || "node")
+        const nodeId = generateId()
         const addEdit = addNodeEdit(nodeData.type, position, nodeId)
 
         const edits: any[] = [addEdit]

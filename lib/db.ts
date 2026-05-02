@@ -20,7 +20,11 @@ const getDb = () => {
   })
 }
 
-// Export db as a getter for backwards compatibility
+// Lazy-init proxy. Each property access calls `getDb()` so importers can
+// write `db.from(...)` directly without manually invoking the factory,
+// while still deferring Supabase client construction until first use
+// (avoids module-level init failures at build time when env vars aren't
+// set — see CLAUDE.md "Lazy Client Initialization — MANDATORY").
 export const db = new Proxy({} as ReturnType<typeof getDb>, {
   get(_, prop) {
     return (getDb() as any)[prop]

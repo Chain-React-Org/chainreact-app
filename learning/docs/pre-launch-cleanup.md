@@ -151,28 +151,19 @@ Higher-priority because billing correctness depends on the atomic path being the
 
 ---
 
-## F. Backwards-compat exports / aliases (no real users yet)
+## F. Backwards-compat exports / aliases
 
-These exist "for callers that may still reference the old name." Pre-launch, there ARE no such callers outside this repo. Each one is a migration that can be completed instead of indefinitely supported.
-
-| Status | File:Line | What |
+| Status | Symbol / Comment | Resolution |
 |---|---|---|
-| OPEN | [`lib/db.ts:23`](../../lib/db.ts#L23) | `// Export db as a getter for backwards compatibility` |
-| OPEN | [`lib/db/schema.ts:28`](../../lib/db/schema.ts#L28) | `// Legacy compatibility - keep existing exports that code may still reference` |
-| OPEN | [`lib/db/schema.ts:55`](../../lib/db/schema.ts#L55) | `// Legacy type aliases for backwards compatibility` |
-| OPEN | [`stores/analyticsStore.ts:74`](../../stores/analyticsStore.ts#L74) | `// Legacy types for backward compatibility` |
-| OPEN | [`stores/analyticsStore.ts:104`](../../stores/analyticsStore.ts#L104) | `// Legacy data for backward compatibility` |
-| OPEN | [`stores/analyticsStore.ts:115`](../../stores/analyticsStore.ts#L115) | `// Legacy actions` |
-| OPEN | [`stores/analyticsStore.ts:163`](../../stores/analyticsStore.ts#L163) | `// Legacy state` |
-| OPEN | [`stores/analyticsStore.ts:221`](../../stores/analyticsStore.ts#L221) | `// Legacy methods for backward compatibility` |
-| OPEN | [`hooks/use-integrations.ts:33`](../../hooks/use-integrations.ts#L33) | `// Legacy fields (backward compatibility)` |
-| OPEN | [`src/lib/workflows/compat/v2Adapter.ts:80`](../../src/lib/workflows/compat/v2Adapter.ts#L80) | `// The prefix parameter is kept for backwards compatibility but ignored` (entire `compat/` folder is suspect) |
-| OPEN | [`src/lib/workflows/builder/featureFlag.ts:20`](../../src/lib/workflows/builder/featureFlag.ts#L20) | `@deprecated Flow V2 is always enabled. This function is kept for backward compatibility.` — function should be deleted; callers cleaned up |
-| OPEN | [`src/lib/workflows/builder/agent/planner.ts:94`](../../src/lib/workflows/builder/agent/planner.ts#L94) | `// Legacy allow-list kept for backward compatibility with generic nodes` |
-| OPEN | [`src/lib/workflows/builder/agent/planner.ts:811`](../../src/lib/workflows/builder/agent/planner.ts#L811) | `// The type parameter is kept for backwards compatibility but ignored` |
-| OPEN | [`src/lib/workflows/builder/agent/planner.ts:1217`](../../src/lib/workflows/builder/agent/planner.ts#L1217) | `// Legacy node - use provided config hints` |
-
-**Pre-launch action:** for each, identify the callers that would have to change if the legacy export is removed. Migrate them. Remove the legacy alias.
+| RECLASSIFIED — 2026-05-02 | `lib/db.ts:23` `db` proxy | Comment was misleading ("backwards compatibility"). The proxy is a legitimate **lazy-init helper** — it defers Supabase client construction until first property access so importers can write `db.from(...)` directly without manually invoking `getDb()`, while avoiding module-level env-var failures at build time. Comment rewritten to clarify this. KEEP. |
+| DONE — 2026-05-02 | Entire `lib/db/schema.ts` file | Deleted. Zero importers anywhere in the codebase (verified via grep on `@/lib/db/schema` — no matches). The file was a stale set of legacy type aliases (`Account`, `OAuthAccount`, `Session`, `accounts`, `integrationTable`, etc.) that nothing imported. |
+| KEEP — JUSTIFIED — 2026-05-02 | `stores/analyticsStore.ts` legacy state/methods (`metrics`, `chartData`, `executions`, `fetchMetrics`, `fetchChartData`, `fetchExecutions`, `clearAllData`) | Active callers in `components/dashboard/DashboardContent.tsx` (uses `metrics, chartData, fetchMetrics, fetchChartData`) and `stores/authStore.ts` (uses `clearAllData` for sign-out cleanup). Migration requires rewriting `DashboardContent.tsx` to use the new `dashboard` state + `fetchDashboard`. Separate UI-refactor PR. |
+| KEEP — JUSTIFIED — 2026-05-02 | `hooks/use-integrations.ts:33` `email` / `account_name` legacy fields on `Integration` interface | Active consumers: `components/integrations/IntegrationHealthDashboard.tsx`, `components/new-design/AppsContent.tsx`. Migration would require renaming fields across the UI surface — non-trivial. |
+| DONE — 2026-05-02 | `src/lib/workflows/compat/v2Adapter.ts:generateId` `_prefix` parameter | Removed the unused parameter (was annotated "kept for backwards compatibility but ignored"). Updated the 2 callers in `WorkflowBuilderV2.tsx` that were passing a prefix. The prefix was a remnant of the pre-UUID schema; `workflow_nodes.id` is `uuid` type and accepts only pure UUIDs. |
+| DONE — 2026-05-02 | `src/lib/workflows/builder/featureFlag.ts` (entire file) + `src/lib/workflows/builder/api/guards.ts` | Both files deleted. `isFlowV2Enabled` always returned `true` ("Flow V2 is always enabled"), making `guardFlowV2Enabled` a no-op gate. Bonus finding: the 3 routes that called `guardFlowV2Enabled()` (`/api/secrets` GET+POST, `/api/trigger/http/[flowId]`) **never imported it** — the calls were broken at runtime but the bug was dormant since the gate would have returned `null` anyway. Removed the dead calls + deleted both files. |
+| KEEP — JUSTIFIED — 2026-05-02 | `src/lib/workflows/builder/agent/planner.ts:ALLOWED_NODE_TYPES` legacy allow-list | Used by `validateDraft` as a fallback for legacy node types (http.trigger / http.request / ai.generate / mapper.node / logic.ifSwitch / notify.dispatch). Removing it would lose validation for those types. Migration requires moving these into the main catalog or a new "first-party" registry. |
+| DONE — 2026-05-02 | `src/lib/workflows/builder/agent/planner.ts:generateNodeId` `_type` parameter | Removed the unused parameter (same pattern as `generateId` above). Updated the single caller. |
+| KEEP — JUSTIFIED — 2026-05-02 | `src/lib/workflows/builder/agent/planner.ts:1217` "Legacy node - use provided config hints" branch | Active fallback for nodes that aren't in the new catalog but are in the legacy `ALLOWED_NODE_TYPES`. Falls out as part of the same migration as the `ALLOWED_NODE_TYPES` cleanup above. |
 
 ---
 

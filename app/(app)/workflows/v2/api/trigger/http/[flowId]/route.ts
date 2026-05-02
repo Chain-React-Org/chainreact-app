@@ -11,11 +11,6 @@ import {
 } from "@/src/lib/workflows/builder/api/helpers"
 
 export async function POST(request: Request, context: { params: Promise<{ flowId: string }> }) {
-  const flag = guardFlowV2Enabled()
-  if (flag) {
-    return flag
-  }
-
   const { flowId } = await context.params
 
   const payload = await request.json().catch(() => null)

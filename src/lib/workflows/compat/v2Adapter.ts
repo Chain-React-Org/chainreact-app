@@ -75,9 +75,8 @@ interface RunSummaryPayload {
 
 const JSON_HEADERS = { "Content-Type": "application/json" }
 
-export function generateId(_prefix?: string): string {
-  // Generate pure UUIDs for database compatibility (workflow_nodes.id is uuid type)
-  // The prefix parameter is kept for backwards compatibility but ignored
+export function generateId(): string {
+  // Pure UUIDs for database compatibility (workflow_nodes.id is uuid type).
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID()
   }

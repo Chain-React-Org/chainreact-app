@@ -12,11 +12,6 @@ const CreateSecretSchema = z.object({
 })
 
 export async function GET(request: Request) {
-  const flag = guardFlowV2Enabled()
-  if (flag) {
-    return flag
-  }
-
   const supabase = await getRouteClient()
   const {
     data: { user },
@@ -45,11 +40,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const flag = guardFlowV2Enabled()
-  if (flag) {
-    return flag
-  }
-
   const supabase = await getRouteClient()
   const {
     data: { user },

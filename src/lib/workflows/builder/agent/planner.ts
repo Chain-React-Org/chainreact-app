@@ -806,9 +806,8 @@ function computeDeterministicHash(edits: Edit[]): string {
   return createHash("sha256").update(canonicalJson).digest("hex").slice(0, 16)
 }
 
-function generateNodeId(_type: string, existing: Set<string>): string {
-  // Generate pure UUIDs for database compatibility (workflow_nodes.id is uuid type)
-  // The type parameter is kept for backwards compatibility but ignored
+function generateNodeId(existing: Set<string>): string {
+  // Pure UUIDs for database compatibility (workflow_nodes.id is uuid type).
   let candidate: string
   do {
     candidate = crypto.randomUUID()
@@ -1218,7 +1217,7 @@ async function planEditsWithPatterns({ prompt, flow }: { prompt: string; flow: F
       defaultConfig = configHints
     }
 
-    const nodeId = generateNodeId(type.replace(/\W+/g, "-"), existingNodeIds)
+    const nodeId = generateNodeId(existingNodeIds)
     const nodeTitle = catalogNode?.title || legacyDefinition?.title || type
     const nodeCostHint = legacyDefinition?.costHint || 0
     const nodeDescription = catalogNode?.description || legacyDefinition?.description
