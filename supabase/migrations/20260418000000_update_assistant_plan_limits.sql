@@ -1,5 +1,11 @@
 -- Update AI assistant message limits per plan tier
 -- Free: 20/month, Pro: 200/month, Team: 1000/month, Business: -1 (unlimited), Enterprise: -1 (unlimited)
+--
+-- Originally applied directly to the remote database via the Supabase SQL
+-- editor on 2026-04-18. Backfilled into the migrations folder on 2026-05-02
+-- so local + remote history stay in sync. Idempotent — re-running is a
+-- no-op since the UPDATE rows already match these values and the JSONB
+-- append guards on `NOT features::text LIKE '%Assistant%'`.
 
 UPDATE plans SET max_ai_assistant_calls = 20 WHERE name = 'free';
 UPDATE plans SET max_ai_assistant_calls = 200 WHERE name = 'pro';

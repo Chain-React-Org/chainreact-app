@@ -11,7 +11,11 @@
 
 CREATE TABLE IF NOT EXISTS public.session_side_effects (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  execution_session_id text NOT NULL,
+  -- Matches workflow_execution_sessions.id (uuid). The Supabase JS client
+  -- handles the string-to-uuid coercion transparently when the value is a
+  -- valid uuid string, so the TS shape `{ executionSessionId: string }`
+  -- doesn't need to change.
+  execution_session_id uuid NOT NULL,
   node_id text NOT NULL,
   action_type text NOT NULL,
   provider text NOT NULL,

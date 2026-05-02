@@ -12,6 +12,13 @@ DROP POLICY IF EXISTS "Users can view their own workflow permissions" ON public.
 DROP POLICY IF EXISTS "Admins can manage workflow permissions" ON public.workflow_permissions;
 DROP POLICY IF EXISTS "Workflow owners can manage permissions" ON public.workflow_permissions;
 
+-- Idempotency: drop the new wp_* policies before recreating, in case
+-- a prior partial run / SQL-editor application already created them.
+DROP POLICY IF EXISTS "wp_select" ON public.workflow_permissions;
+DROP POLICY IF EXISTS "wp_insert" ON public.workflow_permissions;
+DROP POLICY IF EXISTS "wp_update" ON public.workflow_permissions;
+DROP POLICY IF EXISTS "wp_delete" ON public.workflow_permissions;
+
 -- SELECT: Users can see permissions for workflows they own or permissions granted to them
 CREATE POLICY "wp_select"
   ON public.workflow_permissions
