@@ -112,13 +112,13 @@ A `TriggerLifecycleManager` + per-provider `*TriggerLifecycle` pattern supersede
 
 Higher-priority because billing correctness depends on the atomic path being the only one used.
 
-| Status | File:Line | What |
-|---|---|---|
-| OPEN | [`lib/workflows/taskDeduction.ts:323`](../../lib/workflows/taskDeduction.ts#L323) | `@deprecated Use deductTasksAtomic() instead. This function uses a non-atomic` (full reason in source) |
-| OPEN | [`lib/workflows/taskDeduction.ts:341`](../../lib/workflows/taskDeduction.ts#L341) | `@deprecated Use deductTasksAtomic() instead. The atomic RPC handles both` |
-| OPEN | [`lib/workflows/ai-agent/aiWorkflowCostTracking.ts:73`](../../lib/workflows/ai-agent/aiWorkflowCostTracking.ts#L73) | `@deprecated Use the atomic deductAIWorkflowTasks() instead.` |
+| Status | File:Line | What | Resolution |
+|---|---|---|---|
+| DONE — 2026-05-02 | `lib/workflows/taskDeduction.ts:327` | `deductExecutionTasks` — `@deprecated` wrapper that delegated to `deductTasksAtomic`. | Deleted. Zero callers verified via grep at deletion time. |
+| DONE — 2026-05-02 | `lib/workflows/taskDeduction.ts:345` | `checkTaskBalance` — `@deprecated` non-atomic balance read. | Deleted. Only caller was the `'execution'` branch in `usageTracking.ts:checkUsageLimit`, which itself had zero callers (no `checkUsageLimit('execution', ...)` exists in the codebase). Branch removed. |
+| KEEP — JUSTIFIED — 2026-05-02 | `lib/workflows/ai-agent/aiWorkflowCostTracking.ts:checkAIWorkflowTaskBalance` | Misleadingly tagged `@deprecated`. Actively used by `/edits` route (workflows/v2/api/flows/[flowId]/edits/route.ts:206) for early 402 short-circuit before incurring LLM cost. | The atomic RPC deducts; this function reads. Two distinct responsibilities. The `@deprecated` notice was wrong — it's been replaced with a JSDoc that explains the read-vs-deduct split and the deduct-then-fail-is-too-late rationale. |
 
-**Pre-launch action:** confirm zero callers of the deprecated functions, then delete. Any remaining caller is a billing-correctness bug — non-atomic deduction can double-charge or under-charge under concurrent execution.
+**Verification:** 1785 / 1785 tests pass across 97 suites after the deletions. Billing-gate test suite (`__tests__/workflows/billing-gate.test.ts`) continues to pin the upstream-only contract per A6.
 
 ---
 

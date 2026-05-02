@@ -39,13 +39,12 @@ export async function checkUsageLimit(
   userId: string,
   resourceType: string,
 ): Promise<{ allowed: boolean; limit: number; current: number }> {
-  // For task-based limits, use the direct profile check
-  if (resourceType === 'execution') {
-    const { checkTaskBalance } = await import('@/lib/workflows/taskDeduction')
-    const result = await checkTaskBalance(userId, 1)
-    return { allowed: result.allowed, limit: result.limit, current: result.used }
-  }
-
+  // §C cleanup — the `'execution'` branch that called the deprecated
+  // `checkTaskBalance` was removed; no caller passed `'execution'` here
+  // (verified via grep). Task-based execution gating goes through
+  // `deductTasksAtomic` at the workflow execution boundary — see
+  // `lib/workflows/taskDeduction.ts` and CLAUDE.md "Task Cost Visibility
+  // & Billing."
   const supabase = createClient()
 
   try {

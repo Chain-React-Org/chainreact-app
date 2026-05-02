@@ -70,8 +70,12 @@ export function generatePlanningChargeId(): string {
 }
 
 /**
- * @deprecated Use the atomic deductAIWorkflowTasks() instead.
- * The atomic RPC handles both balance checking and deduction.
+ * Read-only balance check used by the `/edits` route to short-circuit with
+ * 402 Payment Required *before* incurring LLM cost. Distinct from
+ * `deductAIWorkflowTasks` (which atomically deducts) — this function only
+ * reads. Both responsibilities are valid: deduct-then-fail is too late
+ * because the LLM call has already burned compute and dollars by the time
+ * the deduction RPC runs. Keep — JUSTIFIED per pre-launch-cleanup.md §C.
  */
 export async function checkAIWorkflowTaskBalance(
   userId: string

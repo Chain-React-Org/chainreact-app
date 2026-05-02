@@ -319,64 +319,8 @@ export async function deductTasksAtomic(
   }
 }
 
-/**
- * @deprecated Use deductTasksAtomic() instead. This function uses a non-atomic
- * post-execution deduction pattern that has a race condition with concurrent executions.
- * Kept temporarily for callers not yet migrated.
- */
-export async function deductExecutionTasks(
-  userId: string,
-  executedNodes: any[],
-  executionSessionId: string,
-  isTestMode: boolean
-): Promise<TaskDeductionResult> {
-  // Delegate to the new atomic function — pass empty edges for backward compat
-  // (flat cost only, no loop expansion)
-  return deductTasksAtomic(userId, executedNodes, [], executionSessionId, isTestMode, {
-    source: 'execution'
-  })
-}
-
-/**
- * @deprecated Use deductTasksAtomic() instead. The atomic RPC handles both
- * balance checking and deduction in a single serialized transaction.
- * Kept temporarily for callers not yet migrated (e.g., usageTracking.ts).
- */
-export async function checkTaskBalance(
-  userId: string,
-  estimatedCost: number
-): Promise<{ allowed: boolean; remaining: number; limit: number; used: number }> {
-  try {
-    const { createAdminClient } = await import('@/lib/supabase/admin')
-    const supabase = createAdminClient()
-
-    const { data: profile, error } = await supabase
-      .from('user_profiles')
-      .select('tasks_used, tasks_limit')
-      .eq('id', userId)
-      .single()
-
-    if (error || !profile) {
-      logger.warn('[TaskDeduction] Could not fetch profile for balance check', {
-        userId,
-        error: error?.message
-      })
-      // Fail closed (changed from fail-open)
-      return { allowed: false, remaining: 0, limit: 0, used: 0 }
-    }
-
-    const used = profile.tasks_used ?? 0
-    const limit = profile.tasks_limit ?? 100
-
-    if (limit === -1) {
-      return { allowed: true, remaining: Infinity, limit: -1, used }
-    }
-
-    const remaining = Math.max(0, limit - used)
-    return { allowed: remaining >= estimatedCost, remaining, limit, used }
-  } catch (error: any) {
-    logger.error('[TaskDeduction] Error checking task balance', { userId, error: error.message })
-    // Fail closed
-    return { allowed: false, remaining: 0, limit: 0, used: 0 }
-  }
-}
+// `deductExecutionTasks` and `checkTaskBalance` were @deprecated wrappers
+// over the atomic deduction path; both removed in §C cleanup
+// (zero remaining callers verified at deletion time). The single source of
+// truth is `deductTasksAtomic` above. AI-workflow read-only balance checks
+// live in `aiWorkflowCostTracking.ts:checkAIWorkflowTaskBalance`.
