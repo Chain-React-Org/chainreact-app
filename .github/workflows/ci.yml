@@ -79,6 +79,15 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_ENV: test
+      # PR-F item 9: Google OAuth sandbox round-trip. Secrets are
+      # optional — when unset, the google-oauth.infra.test.ts suite
+      # logs a skip note and exits 0. Once provisioned per
+      # learning/docs/test-infra-credentials.md, these secrets enable
+      # the live token-exchange validation.
+      TEST_GOOGLE_CLIENT_ID: ${{ secrets.TEST_GOOGLE_CLIENT_ID }}
+      TEST_GOOGLE_CLIENT_SECRET: ${{ secrets.TEST_GOOGLE_CLIENT_SECRET }}
+      TEST_GOOGLE_REFRESH_TOKEN: ${{ secrets.TEST_GOOGLE_REFRESH_TOKEN }}
+      TEST_GOOGLE_USER_EMAIL: ${{ secrets.TEST_GOOGLE_USER_EMAIL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

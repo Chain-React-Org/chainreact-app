@@ -62,7 +62,7 @@ CI cannot click through Google's consent screen. The pattern is:
 | `TEST_GOOGLE_REFRESH_TOKEN` | step 3 | infra OAuth tests |
 | `TEST_GOOGLE_USER_EMAIL` | step 2 | infra OAuth tests (assertion target) |
 
-These are referenced from `.github/workflows/ci.yml`'s infra-tests job once PR-F item 9 lands. Until then, the secrets are unused and can be added at any time without affecting CI.
+These are wired into `.github/workflows/ci.yml`'s `infra-tests` job as of PR-F item 9. The test file [`__tests__/infra/google-oauth.infra.test.ts`](../../__tests__/infra/google-oauth.infra.test.ts) skips cleanly when any of the three required secrets (`TEST_GOOGLE_CLIENT_ID` / `TEST_GOOGLE_CLIENT_SECRET` / `TEST_GOOGLE_REFRESH_TOKEN`) is unset, so CI passes today and starts exercising the live round-trip the moment the secrets are provisioned. `TEST_GOOGLE_USER_EMAIL` is optional metadata.
 
 ---
 
