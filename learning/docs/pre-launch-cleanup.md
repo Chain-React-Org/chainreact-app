@@ -87,24 +87,35 @@
 
 ## B. Trigger lifecycle migration — old per-provider webhook setup
 
-A `TriggerLifecycleManager` + per-provider `*TriggerLifecycle` pattern superseded direct webhook-setup files. The old files are still present and `@deprecated`.
+A `TriggerLifecycleManager` + per-provider `*TriggerLifecycle` pattern superseded direct webhook-setup files. Sweep performed 2026-05-02 — partial closure: 3 truly-dead exports deleted, 10 retained as KEEP — JUSTIFIED because they're load-bearing for legacy paths still wired into production cron / API routes.
 
-| Status | File:Line | What |
+### Deleted 2026-05-02 (zero callers verified)
+
+| Symbol | File | Why safe |
 |---|---|---|
-| OPEN | [`lib/integrations/airtable/webhooks.ts:42`](../../lib/integrations/airtable/webhooks.ts#L42) | `@deprecated Use AirtableTriggerLifecycle instead` |
-| OPEN | [`lib/integrations/airtable/webhooks.ts:74`](../../lib/integrations/airtable/webhooks.ts#L74) | same |
-| OPEN | [`lib/integrations/airtable/webhooks.ts:546`](../../lib/integrations/airtable/webhooks.ts#L546) | same |
-| OPEN | [`lib/integrations/airtable/webhooks.ts:646`](../../lib/integrations/airtable/webhooks.ts#L646) | same |
-| OPEN | [`lib/integrations/airtable/webhooks.ts:702`](../../lib/integrations/airtable/webhooks.ts#L702) | same |
-| OPEN | [`lib/webhooks/google-drive-watch-setup.ts:57`](../../lib/webhooks/google-drive-watch-setup.ts#L57) | `@deprecated Use GoogleApisTriggerLifecycle instead` |
-| OPEN | [`lib/webhooks/google-drive-watch-setup.ts:196`](../../lib/webhooks/google-drive-watch-setup.ts#L196) | same |
-| OPEN | [`lib/webhooks/google-calendar-watch-setup.ts:69`](../../lib/webhooks/google-calendar-watch-setup.ts#L69) | same |
-| OPEN | [`lib/webhooks/google-calendar-watch-setup.ts:224`](../../lib/webhooks/google-calendar-watch-setup.ts#L224) | same |
-| OPEN | [`lib/webhooks/gmail-watch-setup.ts:49`](../../lib/webhooks/gmail-watch-setup.ts#L49) | same |
-| OPEN | [`lib/triggers/providers/NotionTriggerLifecycle.ts:298`](../../lib/triggers/providers/NotionTriggerLifecycle.ts#L298) | `@deprecated Use getNotionEventTypes for actual API calls` |
-| OPEN | [`lib/microsoft-graph/subscriptionManager.ts:523`](../../lib/microsoft-graph/subscriptionManager.ts#L523) | `// DEPRECATED: Subscription saving is now handled by TriggerLifecycleManager` |
+| `cleanupInactiveAirtableWebhooks` | `lib/integrations/airtable/webhooks.ts` | Zero importers. Lifecycle owns inactive cleanup via `AirtableTriggerLifecycle.onDeactivate`/`onDelete`. |
+| `getSupportedEventsForTrigger` | `lib/triggers/providers/NotionTriggerLifecycle.ts` | Private method with zero internal references. `getNotionEventTypes` is the authoritative version. |
+| `saveSubscription` | `lib/microsoft-graph/subscriptionManager.ts` | Deprecated empty stub (logged-and-returned). Zero callers. Lifecycle owns persistence. |
 
-**Pre-launch action:** verify each file's exports have zero remaining callers (grep for the symbol name). Delete the deprecated functions or the whole file as appropriate. The active path is the `TriggerLifecycleManager` + per-provider lifecycle classes per CLAUDE.md Section 4 "Trigger Lifecycle Pattern."
+### KEEP — JUSTIFIED 2026-05-02 (load-bearing for legacy paths)
+
+| Symbol | File | Caller | Migration path required before deletion |
+|---|---|---|---|
+| `ensureAirtableWebhooksForUser` | `lib/integrations/airtable/webhooks.ts` | `app/api/integrations/airtable/register-webhooks/route.ts` | Delete the route OR migrate it to call `TriggerLifecycleManager.activate(workflow)`. |
+| `ensureAirtableWebhookForBase` | same | `lib/webhooks/triggerWebhookManager.ts:registerAirtableWebhook` (unreachable: gated by `lifecycleManagedProviders` early-return at line 929 — but the wrapper hasn't been pruned) | Delete `registerAirtableWebhook` private method + the `case 'airtable':` in `registerWithExternalService`, then this dependency disappears. |
+| `unregisterAirtableWebhook` | same | `lib/webhooks/triggerWebhookManager.ts:unregisterAirtableWebhook` (still reachable from `unregisterFromExternalService('airtable')` — legacy cleanup path, no lifecycle guard) | Add the `'airtable'` provider to a lifecycle-managed early-return in `unregisterFromExternalService`, then delete this. |
+| `refreshAirtableWebhook` | same | `app/api/webhooks/refresh-airtable/route.ts` (not in `vercel.json` crons but route is publicly hit-able) | Delete the route OR redirect renewal traffic to `/api/cron/renew-webhook-subscriptions`. |
+| `setupGmailWatch` / `stopGmailWatch` / `setupGoogleDriveWatch` / `stopGoogleDriveWatch` / `setupGoogleCalendarWatch` / `stopGoogleCalendarWatch` | `lib/webhooks/{gmail,google-drive,google-calendar}-watch-setup.ts` | `lib/webhooks/google-watch-renewal.ts:renewExpiringGoogleWatches` → `app/api/webhooks/google/renew/route.ts` (vercel.json: daily 7am cron) | Migrate `google-watch-renewal.ts` to query `trigger_resources` (lifecycle-managed) instead of the legacy `google_watch_subscriptions` table, and call `GoogleApisTriggerLifecycle.checkHealth()` for renewal. Then remove the daily cron entry, delete the route, delete `google-watch-renewal.ts`, delete the watch-setup files. |
+| `triggerWebhookManager.ts` legacy file | `lib/webhooks/triggerWebhookManager.ts` | Listed itself as "PARTIALLY DEPRECATED — STILL ACTIVE PROVIDERS: Trello / Dropbox / GitHub / Notion / HubSpot" | Migrate the 5 still-active providers to per-provider `TriggerLifecycle` classes, remove the `lifecycleManagedProviders` early-return (no longer needed), then delete the file entirely. Will retire the airtable wrapper deletion path above as a side effect. |
+
+### Pre-launch action
+
+Three concrete migrations, each landed in their own PR before launch:
+1. **Airtable legacy cleanup PR** — delete `app/api/integrations/airtable/register-webhooks/route.ts` + `app/api/webhooks/refresh-airtable/route.ts` after confirming no external callers (frontend + integrations + customer docs). Add Airtable to `unregisterFromExternalService` early-return. Delete the 4 KEEP entries above.
+2. **Google watch renewal migration PR** — rewrite `google-watch-renewal.ts` to use `GoogleApisTriggerLifecycle.checkHealth()`, drop `google_watch_subscriptions` table query in favor of `trigger_resources`, remove daily cron, delete the 3 watch-setup files (gmail/drive/calendar). Run a one-shot data migration script if any rows exist in `google_watch_subscriptions` that aren't in `trigger_resources`.
+3. **`triggerWebhookManager.ts` retirement PR** — migrate Trello / Dropbox / GitHub / Notion / HubSpot triggers to per-provider lifecycle classes, then delete the file.
+
+Until all three PRs ship, the KEEP entries above remain — they're not dead code, they're load-bearing for production cron paths.
 
 ---
 

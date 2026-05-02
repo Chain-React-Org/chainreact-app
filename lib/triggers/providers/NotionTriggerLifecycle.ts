@@ -293,11 +293,7 @@ export class NotionTriggerLifecycle implements TriggerLifecycle {
     }
   }
 
-  /**
-   * Get supported events for documentation/metadata
-   * @deprecated Use getNotionEventTypes for actual API calls
-   */
-  private getSupportedEventsForTrigger(triggerType: string): string[] {
-    return this.getNotionEventTypes(triggerType)
-  }
+  // `getSupportedEventsForTrigger` was @deprecated and had zero callers
+  // (the method was private with no internal references either). Removed
+  // in §B sweep — 2026-05-02. Use `getNotionEventTypes` directly.
 }

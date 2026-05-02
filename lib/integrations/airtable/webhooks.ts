@@ -698,32 +698,7 @@ export async function refreshAirtableWebhook(userId: string, baseId: string) {
   }
 }
 
-/**
- * @deprecated Use AirtableTriggerLifecycle instead
- */
-export async function cleanupInactiveAirtableWebhooks() {
-  logger.warn('⚠️ DEPRECATED: cleanupInactiveAirtableWebhooks() is deprecated. Use AirtableTriggerLifecycle instead.')
-  try {
-    // Get all expired webhooks
-    const now = new Date()
-    const { data: expiredWebhooks } = await getSupabase()
-      .from('airtable_webhooks')
-      .select('user_id, base_id, webhook_id')
-      .eq('status', 'active')
-      .lt('expiration_time', now.toISOString())
-
-    if (!expiredWebhooks || expiredWebhooks.length === 0) return
-
-    for (const webhook of expiredWebhooks) {
-      // Mark as inactive
-      await getSupabase()
-        .from('airtable_webhooks')
-        .update({ status: 'inactive' })
-        .eq('webhook_id', webhook.webhook_id)
-
-      logger.info(`Marked webhook ${webhook.webhook_id} as inactive due to expiration`)
-    }
-  } catch (error) {
-    logger.error('Failed to cleanup inactive Airtable webhooks:', error)
-  }
-}
+// `cleanupInactiveAirtableWebhooks` was @deprecated and had zero callers
+// (verified at deletion time). The lifecycle system handles inactive
+// webhook cleanup via `AirtableTriggerLifecycle.onDeactivate` /
+// `onDelete`. Pre-launch §B sweep — 2026-05-02.

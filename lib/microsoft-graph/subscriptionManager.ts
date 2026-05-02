@@ -520,11 +520,8 @@ export class MicrosoftGraphSubscriptionManager {
     return crypto.randomBytes(32).toString('hex')
   }
 
-  // DEPRECATED: Subscription saving is now handled by TriggerLifecycleManager
-  // This method is no longer used but kept for backward compatibility
-  private async saveSubscription(subscription: MicrosoftGraphSubscription): Promise<void> {
-    logger.info('⚠️ saveSubscription called but is deprecated - lifecycle manager handles persistence')
-  }
+  // `saveSubscription` was a deprecated empty stub (lifecycle manager now
+  // owns persistence) with zero callers. Removed in §B sweep — 2026-05-02.
 
   private async updateSubscription(subscription: MicrosoftGraphSubscription): Promise<void> {
     const { error } = await getSupabase()
