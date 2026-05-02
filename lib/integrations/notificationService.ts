@@ -296,32 +296,11 @@ export async function sendRateLimitNotification(
   )
 }
 
-/**
- * Determine if notification should be sent based on failure count.
- *
- * @deprecated Use healthTransitionEngine.computeTransitionAndNotify() instead.
- * Kept for backward compatibility during migration. Notification decisions
- * should be driven by persisted health state transitions, not threshold checks.
- */
-export function shouldSendNotification(
-  consecutiveFailures: number,
-  consecutiveTransientFailures: number,
-  notificationType: 'warning' | 'disconnected' | 'rate_limit'
-): boolean {
-  switch (notificationType) {
-    case 'warning':
-      return consecutiveFailures === 2
-
-    case 'disconnected':
-      return consecutiveFailures >= 3
-
-    case 'rate_limit':
-      return consecutiveTransientFailures >= 5 && consecutiveTransientFailures % 5 === 0
-
-    default:
-      return false
-  }
-}
+// `shouldSendNotification` was @deprecated and had zero callers (verified
+// at deletion time). Notification decisions are owned exclusively by
+// `healthTransitionEngine.computeTransitionAndNotify` — the engine is the
+// only system that decides whether to notify, per CLAUDE.md "Proactive
+// OAuth Token Management." Removed in §D sweep — 2026-05-02.
 
 // =============================================================================
 // Pure delivery functions (called by healthTransitionEngine only)

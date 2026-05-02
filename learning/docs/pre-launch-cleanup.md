@@ -135,11 +135,9 @@ Higher-priority because billing correctness depends on the atomic path being the
 
 ## D. Notification service — superseded by `healthTransitionEngine`
 
-| Status | File:Line | What |
+| Status | Symbol | Resolution |
 |---|---|---|
-| OPEN | [`lib/integrations/notificationService.ts:302`](../../lib/integrations/notificationService.ts#L302) | `@deprecated Use healthTransitionEngine.computeTransitionAndNotify() instead.` |
-
-**Pre-launch action:** per CLAUDE.md Section 4 "Proactive OAuth Token Management," the transition engine is the only system that decides whether to notify. Delete the deprecated function and confirm no callers in cron routes or callbacks.
+| DONE — 2026-05-02 | `shouldSendNotification` in `lib/integrations/notificationService.ts` | Deleted. Zero callers verified at deletion time. Notification decisions are owned exclusively by `healthTransitionEngine.computeTransitionAndNotify` per CLAUDE.md Section 4. |
 
 ---
 
