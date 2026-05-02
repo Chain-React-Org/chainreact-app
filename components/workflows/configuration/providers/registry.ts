@@ -54,7 +54,10 @@ class ProviderRegistryImpl implements IProviderRegistry {
     // Register Facebook loader
     this.register('facebook', new FacebookOptionsLoader());
     
-    // Register HubSpot loaders (both legacy and dynamic)
+    // Register both HubSpot loaders. The base loader covers fixed lookups
+    // (listId, contactId, ownerId, etc.); the dynamic loader covers the
+    // dynamic-object schema (objectType / properties / recordId /
+    // identifierProperty) plus a few overlapping shared fields.
     this.register('hubspot', hubspotOptionsLoader);
     this.register('hubspot', hubspotDynamicOptionsLoader);
     

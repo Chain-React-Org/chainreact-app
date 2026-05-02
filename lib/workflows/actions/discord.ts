@@ -979,13 +979,12 @@ export async function editDiscordMessage(config: any, userId: string, input: Rec
 export async function deleteDiscordMessage(config: any, userId: string, input: Record<string, any>) {
   try {
     const resolvedConfig = resolveValue(config, input)
-    const { channelId, messageIds, userId: filterUserId, userIds: filterUserIds, keywords, keywordMatchType = "partial" } = resolvedConfig
-    
+    const { channelId, messageIds, userIds: filterUserIds, keywords, keywordMatchType = "partial" } = resolvedConfig
+
     const botToken = process.env.DISCORD_BOT_TOKEN
     if (!botToken) throw new Error("Discord bot token not configured")
-    
-    // Handle both single userId (legacy) and multiple userIds (new)
-    const userIdsToFilter = filterUserIds || (filterUserId ? [filterUserId] : [])
+
+    const userIdsToFilter = filterUserIds || []
     
     // If no filters are provided and no messages selected, error out
     if (!messageIds?.length && userIdsToFilter.length === 0 && (!keywords || keywords.length === 0)) {

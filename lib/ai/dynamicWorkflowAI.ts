@@ -580,7 +580,9 @@ function validateAndFixNodes(workflow: GeneratedWorkflow): { valid: boolean; wor
             ]
           }
           
-          // Map any legacy/invalid search action types to supported ones
+          // Normalize search-like action types the AI sometimes picks: rewrite
+          // hallucinated google_drive_action_search and the parallel notion_action_search
+          // to the preferred notion_action_search_pages.
           chain.actions = (chain.actions || []).map((a: any) => {
             if (a.type === 'google_drive_action_search' || a.type === 'notion_action_search') {
               return { type: 'notion_action_search_pages', providerId: 'notion', aiConfigured: true, label: 'Search Knowledge Base' }

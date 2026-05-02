@@ -237,65 +237,66 @@ Append any new hits to the appropriate section above. Mark items DONE as their P
 
 ---
 
-## K. Items found during the 2026-05-02 §I re-discovery sweep
+## K. Items found during the 2026-05-02 §I re-discovery sweep — closed 2026-05-02
 
-Sweep run after §G/§H closure. The greps below returned the items in this section that were not already tracked under §A–§H. Each is OPEN unless otherwise noted; categorize on the next pass.
+Triaged the 26 items the §I sweep surfaced. Pattern matched §G — actual greps for callers, deletions where dead, comment rewrites where load-bearing. Test suite stayed at 1785 / 1785 across 97 suites throughout.
 
-### K.1 Trigger lifecycle alt names / legacy formats (extends §B)
+### K.1 Trigger lifecycle alt names / legacy formats — DONE
 
-| Status | File:Line | What |
-|---|---|---|
-| OPEN | [`lib/triggers/providers/MicrosoftGraphTriggerLifecycle.ts:601`](../../lib/triggers/providers/MicrosoftGraphTriggerLifecycle.ts#L601) | `'trigger_file_created': '/me/drive/root', // Legacy alias` — confirm whether any node still emits this trigger type or if it's been replaced. |
-| OPEN | [`lib/triggers/providers/AirtableTriggerLifecycle.ts:41,69`](../../lib/triggers/providers/AirtableTriggerLifecycle.ts#L41) | Two-shape baseId parsing — compound `integrationId:baseId` vs legacy bare `baseId`. Confirm DB has zero rows in legacy shape. |
-| OPEN | [`lib/triggers/providers/GoogleApisTriggerLifecycle.ts:718`](../../lib/triggers/providers/GoogleApisTriggerLifecycle.ts#L718) | `// Legacy names for backward compatibility` — likely trigger-type aliases. |
-| OPEN | [`lib/triggers/providers/StripeTriggerLifecycle.ts:72`](../../lib/triggers/providers/StripeTriggerLifecycle.ts#L72) | `// Legacy fallback: look up by user_id (for existing workflows without stripe_account)` — pre-launch there shouldn't be any such rows. |
-| OPEN | [`lib/triggers/providers/ShopifyTriggerLifecycle.ts:314`](../../lib/triggers/providers/ShopifyTriggerLifecycle.ts#L314) | `// Legacy/alternative names (for backwards compatibility)` — trigger type aliases. |
+| File | Outcome |
+|---|---|
+| `lib/triggers/providers/MicrosoftGraphTriggerLifecycle.ts:601` | DELETED `'trigger_file_created'` map entry. No node emits this type — OneDrive provider only declares `onedrive_trigger_new_file` and `onedrive_trigger_file_modified`. Also deleted the matching dead branch in `app/api/microsoft-graph/worker/route.ts:1159` that gated on `nodeType === 'onedrive_trigger_file_created'`. |
+| `lib/triggers/providers/AirtableTriggerLifecycle.ts:41,69` | KEEP — JUSTIFIED. The "legacy" label was wrong. Compound `integrationId:baseId` is what the UI dropdown emits; bare `baseId` is reachable from tests, AI-generated configs, and predefined-template imports that haven't been re-saved through the UI. Reworded the comments to drop "legacy" and explain the two real input shapes. |
+| `lib/triggers/providers/GoogleApisTriggerLifecycle.ts:718` | DELETED 3 dead map entries (`google_drive_trigger_file_created` / `_file_modified` / `_file_shared`). Google Drive provider only emits colon-prefix types (`google-drive:new_file_in_folder`, `:file_updated`, etc.) — verified via grep on `type:` declarations. |
+| `lib/triggers/providers/StripeTriggerLifecycle.ts:72` | DELETED legacy user_id fallback. Pre-launch no workflows exist without `stripe_account`. The Stripe provider node defines `stripe_account` as a required-shaped multi-account selector; the trigger now throws an explicit error if it's missing. |
+| `lib/triggers/providers/ShopifyTriggerLifecycle.ts:314` | DELETED 11 dead map entries (`shopify_trigger_order_created`, `_order_cancelled`, `_product_created`, `_product_deleted`, `_customer_created`, `_customer_updated`, `_inventory_updated`, `_cart_created`, `_cart_updated`, `_checkout_created`, `_checkout_updated`). Shopify provider only emits the 8 canonical types listed above. The only external reference was the dead `WebhookManager.tsx` component. |
+| `components/webhooks/WebhookManager.tsx` (bonus) | DELETED. Zero importers. Unused dead-code component. |
 
-### K.2 Per-provider deprecations (extends §E)
+### K.2 Per-provider deprecations — DONE
 
-| Status | File:Line | What |
-|---|---|---|
-| OPEN | [`lib/services/integrations/slackIntegrationService.ts:59,84,113,137,163`](../../lib/services/integrations/slackIntegrationService.ts) | 5 occurrences of `// Use legacy service for actual Slack API calls`. The "legacy service" referred to is likely the deleted `slackActionSendMessageLegacy` (see §E DONE row) — verify the comments are stale leftovers and remove. |
+| File | Outcome |
+|---|---|
+| `lib/services/integrations/slackIntegrationService.ts` (5 sites) | Reworded all 5 misleading "Use legacy service" comments. The "legacy service" was `LegacyIntegrationService.executeFallbackAction`, a thin wrapper around `executeAction` from `lib/workflows/executeNode.ts` (the registry-backed dispatcher). Inlined the wrapper as a private `dispatch` method on `SlackIntegrationService` and DELETED `lib/services/legacyIntegrationService.ts` entirely (the only consumer was Slack; its `executeOneDriveUpload` / `executeDropboxUpload` stub methods had zero callers). |
 
-### K.3 Backwards-compat exports / aliases (extends §F)
+### K.3 Backwards-compat exports / aliases — DONE
 
-| Status | File:Line | What |
-|---|---|---|
-| OPEN | [`utils/supabaseClient.ts:12`](../../utils/supabaseClient.ts#L12) | `// Backward-compatible export using a Proxy to lazily initialize` — same pattern as `lib/db.ts:23` (reclassified DONE in §F). Likely also a lazy-init helper, not back-compat — confirm and reword. |
-| OPEN | [`lib/services/workflowExecutionService.ts:311`](../../lib/services/workflowExecutionService.ts#L311) | `// No-op: kept for backward compatibility with callers that reference this function` — confirm zero callers, delete. |
-| OPEN | [`lib/services/executionHistoryService.ts:380`](../../lib/services/executionHistoryService.ts#L380) | `// No-op for now: legacy cleanup function targeted removed tables.` — function targets removed tables, so the function body can be deleted along with the function. |
-| OPEN | [`lib/workflows/actions/aiAgentAction.ts:1395`](../../lib/workflows/actions/aiAgentAction.ts#L1395) | `// For extract: parse JSON and set data field (primary) + extracted (backwards compat)` — duplicate output field for compat with older consumers. |
-| OPEN | [`lib/workflows/actions/airtable/findRecord.ts:177-178`](../../lib/workflows/actions/airtable/findRecord.ts#L177) | Returns `recordId` / `fields` of the first record alongside the records array — `// First record for backward compatibility`. |
-| OPEN | [`stores/workflowCostStore.ts:60`](../../stores/workflowCostStore.ts#L60) | `// Convert Map to plain object for backward compat callers` — drop if no Map consumers exist. |
+| File | Outcome |
+|---|---|
+| `utils/supabaseClient.ts:12` | KEEP — JUSTIFIED. Same lazy-init Proxy pattern as `lib/db.ts:23` (reclassified in §F). Rewrote the comment to describe what the Proxy actually does (defers Supabase client construction to first property access for build-time env-var safety). |
+| `lib/services/workflowExecutionService.ts:311` | DELETED the no-op `deductTasksForExecutedNodes` function plus its 3 `await` call sites. Tasks are deducted upfront by the calling route per the v1 reservation model; the function had been a stub since the deduction was moved upstream. |
+| `lib/services/executionHistoryService.ts:380` | DELETED the entire `cleanupOldHistory` method. Zero callers (verified via grep). The body was a no-op log line — the underlying RPC targeted removed tables. |
+| `lib/workflows/actions/aiAgentAction.ts:1395` | Reworded the misleading comment. The code doesn't actually emit an `extracted` field — it sets `result.data.data = parsedContent` and hoists each top-level key from the parsed JSON onto `result.data`. The "backwards compat" claim was stale documentation. |
+| `lib/workflows/actions/airtable/findRecord.ts:177-178` | KEEP — JUSTIFIED. The schema's `outputSchema` documents `recordId` / `fields` / `createdTime` as "(or first record if multiple)" — this is intentional UX, not backwards-compat. Reworded the comments to match the schema. |
+| `stores/workflowCostStore.ts:60` | DELETED `setWorkflowCost` (the Map-conversion compat method) and its interface declaration. Zero callers — only `setWorkflowCostDetailed` is used (single caller in `WorkflowBuilderV2.tsx:7637-7650`). |
 
-### K.4 Legacy data shapes / fallback paths (extends §G)
+### K.4 Legacy data shapes / fallback paths — DONE
 
-| Status | File:Line | What |
-|---|---|---|
-| OPEN | [`app/(app)/workflows/v2/api/flows/[flowId]/apply-edits/route.ts:327`](<../../app/(app)/workflows/v2/api/flows/[flowId]/apply-edits/route.ts#L327>) | `// Convert flow nodes to legacy format expected by activateWorkflowTriggers` — function called expects an old node shape; either update its signature or normalize at call site. |
-| OPEN | [`components/workflows/configuration/utils/validation.ts:224`](../../components/workflows/configuration/utils/validation.ts#L224) | `// Check dependency conditions (legacy showIf with dependsOn)` — same migration as §G visibility.ts:218; couples to that work. |
-| OPEN | [`lib/integrations/oauth-callback-handler.ts:78`](../../lib/integrations/oauth-callback-handler.ts#L78) | `// --- Extensions for legacy provider support ---` — review what "legacy" means in this context. |
-| OPEN | [`lib/integrations/oauth-callback-handler.ts:448`](../../lib/integrations/oauth-callback-handler.ts#L448) | `// For personal integrations, keep user_id for backward compatibility` — review whether user_id is still required on personal-integration rows. |
-| OPEN | [`components/workflows/configuration/providers/registry.ts:57`](../../components/workflows/configuration/providers/registry.ts#L57) | `// Register HubSpot loaders (both legacy and dynamic)` — two loader generations registered in parallel. Pick one. |
-| OPEN | [`components/workflows/configuration/providers/hubspot/hubspotDynamicOptionsLoader.ts:267`](../../components/workflows/configuration/providers/hubspot/hubspotDynamicOptionsLoader.ts#L267) | `// Handle legacy fields (backward compatibility)` — same HubSpot dual-shape concern. |
-| OPEN | [`lib/integrations/scope-validator.ts:213`](../../lib/integrations/scope-validator.ts#L213) | `// Check for deprecated scopes` — confirm no provider in production still requires the deprecated scopes. |
-| OPEN | [`lib/workflows/actions/dropbox/uploadFile.ts:111`](../../lib/workflows/actions/dropbox/uploadFile.ts#L111) | `// Legacy format with direct file data` — alt input shape. Pick one. |
-| OPEN | [`lib/workflows/actions/discord.ts:987`](../../lib/workflows/actions/discord.ts#L987) | `// Handle both single userId (legacy) and multiple userIds (new)` — coalesce to multi-value-only input. |
-| OPEN | [`lib/workflows/actions/core/executeIfThen.ts:106`](../../lib/workflows/actions/core/executeIfThen.ts#L106) | `// Legacy support for conditionGroups` — second condition shape. |
-| OPEN | [`lib/services/discordInviteTracker.ts:293`](../../lib/services/discordInviteTracker.ts#L293) | `// Spread config fields into data for legacy compatibility` — flattening for older consumers. |
-| OPEN | [`stores/integrationStore.ts:1080`](../../stores/integrationStore.ts#L1080) | `// Sort by created_at (oldest first for backward compatibility)` — confirm whether the ordering still matters. |
-| OPEN | [`lib/ai/dynamicWorkflowAI.ts:583`](../../lib/ai/dynamicWorkflowAI.ts#L583) | `// Map any legacy/invalid search action types to supported ones` — defensive normalization in the AI workflow generator. |
+| File | Outcome |
+|---|---|
+| `app/(app)/workflows/v2/api/flows/[flowId]/apply-edits/route.ts:327` | KEEP — JUSTIFIED. Misleadingly labeled "legacy". This is a Flow v2 → ReactFlow shape conversion at the call site of `activateWorkflowTriggers`, which expects ReactFlow `{ id, data: { type, ... } }`. Both shapes are active. Renamed the local `legacyNodes` → `reactFlowNodes`; reworded the comment. |
+| `components/workflows/configuration/utils/validation.ts:224` | KEEP — JUSTIFIED. Same pre-migration `dependsOn` + `showIf` shape as `lib/workflows/fields/visibility.ts:218` (§G.5). Tracked alongside `learning/docs/visibility-migration-progress.md`; deletion gated on completing that migration. Reworded the comment. |
+| `lib/integrations/oauth-callback-handler.ts:78` | KEEP — JUSTIFIED. The "legacy provider support" header was wrong. The fields below it (`requiresPkce`, `customTokenExchange`, etc.) are extensions for providers with non-standard OAuth flows — Notion / Shopify / Facebook / Instagram / PayPal — all current. Renamed the section header. |
+| `lib/integrations/oauth-callback-handler.ts:448` | KEEP — JUSTIFIED. Misleading "backward compatibility" label. `user_id` is the canonical owner column for personal integrations and is queried by every handler's token-fetch path (`getDecryptedAccessToken`, `refreshToken`, ~15 per-provider helpers). Reworded the comment. |
+| `components/workflows/configuration/providers/registry.ts:57` | KEEP — JUSTIFIED. Both HubSpot loaders are active with distinct field coverage — base loader handles fixed lookups (listId, ownerId), dynamic loader handles the dynamic-object schema (objectType / properties / recordId / identifierProperty) plus a few overlapping shared fields. Reworded the comment to drop "legacy". |
+| `components/workflows/configuration/providers/hubspot/hubspotDynamicOptionsLoader.ts:267` | Reworded matching comment in the dynamic loader to "shared field" instead of "legacy fields". |
+| `lib/integrations/scope-validator.ts:213` | KEEP. False positive in the §I grep — the `// Check for deprecated scopes` comment describes a real defensive facility (`config.deprecated` warnings when providers mark scopes deprecated). No actual cleanup needed. |
+| `lib/workflows/actions/dropbox/uploadFile.ts:111` | KEEP — JUSTIFIED. The `fileInfo.data` branch handles the Slack-style attachment shape that `FieldRenderer.tsx:911` produces (writes base64 onto `data` with `data:mime;base64,` prefix). Reworded the comment. |
+| `lib/workflows/actions/discord.ts:987` | DELETED single-`userId` fallback. The `delete_messages` action's schema only declares `userIds` (multi-select). The `filterUserId` destructure and its fallback array conversion were dead. |
+| `lib/workflows/actions/core/executeIfThen.ts:106` | DELETED the entire `conditionGroups` branch (lines 106-143) plus the destructure default at line 25. No node schema declares `conditionGroups`; nothing in production input ever has it. |
+| `lib/services/discordInviteTracker.ts:293` | KEEP. The config-spread-onto-data pattern is a common ReactFlow handler-compatibility move. Reworded the comment to drop "legacy compatibility" and explain what the spread actually enables. |
+| `stores/integrationStore.ts:1080` | KEEP. Oldest-first sort is meaningful — callers that take `result[0]` for multi-account providers get the originally-connected account, which is the predictable default. Reworded the comment. |
+| `lib/ai/dynamicWorkflowAI.ts:583` | KEEP. Misleadingly labeled "legacy/invalid". The branch is AI-hallucination correction — `google_drive_action_search` doesn't exist; `notion_action_search` is parallel to (not legacy versus) `notion_action_search_pages`. Reworded the comment. |
 
-### K.5 New "real TODO" hits (extends §H)
+### K.5 Real TODOs — DONE
 
-| Status | File:Line | What |
-|---|---|---|
-| OPEN | [`lib/services/integrations/googleIntegrationService.ts:349`](../../lib/services/integrations/googleIntegrationService.ts#L349) | `// TODO: Implement actual Google Drive delete file` — Google Drive delete-file action is unimplemented in this service. The standalone handler may exist; confirm. |
-| OPEN | [`lib/services/executionHandlers/integrationHandlers.ts:811`](../../lib/services/executionHandlers/integrationHandlers.ts#L811) | `// TODO: Implement when delete record handler is available` — pending handler. |
+| File | Outcome |
+|---|---|
+| `lib/services/integrations/googleIntegrationService.ts:328,350,376` | Replaced 3 `"not yet implemented"` stubs with delegation to the registry-backed handlers `createGoogleDriveFolder` / `deleteGoogleDriveFile` / `shareGoogleDriveFile` (which already existed in `lib/workflows/actions/googleDrive/`). Same pattern the file already used for `executeUploadFile`. |
+| `lib/services/executionHandlers/integrationHandlers.ts:811` | Replaced `"Airtable delete record is not yet implemented"` stub with delegation to `deleteAirtableRecord` from `lib/workflows/actions/airtable/deleteRecord.ts`. Same pattern the file uses for the other Airtable cases. |
 
-### Pre-launch action
+### Verification
 
-The next sweep PR should triage K.1–K.5 the same way §G was: actually grep callers, delete what's truly dead, document the rest with concrete migration paths. Items that turn out to be DONE-by-deletion already (e.g. K.2 Slack stale comments referencing the already-removed `slackActionSendMessageLegacy`) are quick wins.
+1785 / 1785 tests pass across 97 suites after the §K closure. Net change: 6 deletions of dead code (file deletes + map entry deletes + dead-branch deletes) plus 4 wrappers replaced with direct delegation; 13 misleading "legacy" / "backwards compat" comments rewrote to describe what the code actually does.
 
 ---
 

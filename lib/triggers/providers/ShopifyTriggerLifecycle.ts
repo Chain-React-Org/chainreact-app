@@ -309,20 +309,7 @@ export class ShopifyTriggerLifecycle implements TriggerLifecycle {
       'shopify_trigger_order_updated': 'orders/updated',
       'shopify_trigger_new_customer': 'customers/create',
       'shopify_trigger_product_updated': 'products/update',
-      'shopify_trigger_inventory_low': 'inventory_levels/update',
-
-      // Legacy/alternative names (for backwards compatibility)
-      'shopify_trigger_order_created': 'orders/create',
-      'shopify_trigger_order_cancelled': 'orders/cancelled',
-      'shopify_trigger_product_created': 'products/create',
-      'shopify_trigger_product_deleted': 'products/delete',
-      'shopify_trigger_customer_created': 'customers/create',
-      'shopify_trigger_customer_updated': 'customers/update',
-      'shopify_trigger_inventory_updated': 'inventory_levels/update',
-      'shopify_trigger_cart_created': 'carts/create',
-      'shopify_trigger_cart_updated': 'carts/update',
-      'shopify_trigger_checkout_created': 'checkouts/create',
-      'shopify_trigger_checkout_updated': 'checkouts/update'
+      'shopify_trigger_inventory_low': 'inventory_levels/update'
     }
 
     const topic = topicMap[triggerType]

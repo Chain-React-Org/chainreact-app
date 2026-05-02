@@ -75,7 +75,7 @@ export interface OAuthCallbackConfig {
   // GitHub returns URL-encoded by default, needs JSON Accept header
   useJsonResponse?: boolean
 
-  // --- Extensions for legacy provider support ---
+  // --- Extensions for providers with non-standard OAuth flows ---
 
   /**
    * PKCE support: if true, looks up code_verifier from pkce_flow table using raw state param.
@@ -445,7 +445,10 @@ async function saveIntegration(
     connected_by: state.userId,
   }
 
-  // For personal integrations, keep user_id for backward compatibility
+  // user_id is the canonical owner column for personal integrations and is
+  // queried by getDecryptedAccessToken / refreshToken / per-provider handlers.
+  // For team/workspace integrations the connection is workspace-scoped, so
+  // user_id is null and lookups go through workspace_id + connected_by.
   if (workspaceType === 'personal') {
     integrationData.user_id = state.userId
   } else {

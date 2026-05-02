@@ -807,9 +807,18 @@ export class IntegrationNodeHandlers {
         return updateResult.output
 
       case "airtable_delete_record":
-      case "airtable_action_delete_record": // Handle both naming conventions
-        // TODO: Implement when delete record handler is available
-        throw new Error("Airtable delete record is not yet implemented")
+      case "airtable_action_delete_record": { // Handle both naming conventions
+        const { deleteAirtableRecord } = await import("@/lib/workflows/actions/airtable/deleteRecord")
+        const deleteResult = await deleteAirtableRecord(
+          config,
+          context.userId,
+          context.data || {}
+        )
+        if (!deleteResult.success) {
+          throw new Error(deleteResult.error || deleteResult.message || "Failed to delete Airtable record")
+        }
+        return deleteResult.output
+      }
 
       case "airtable_list_records":
       case "airtable_action_list_records": // Handle both naming conventions

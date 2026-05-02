@@ -38,7 +38,13 @@ export class AirtableTriggerLifecycle implements TriggerLifecycle {
       tableName: config.tableName
     })
 
-    // Parse baseId - supports compound format "integrationId:baseId" or legacy "baseId"
+    // baseId can arrive in two shapes:
+    //   1. Compound "integrationId:baseId" — emitted by the UI dropdown
+    //      (components/workflows/configuration/providers/airtable/airtableOptionsLoader.ts).
+    //      This is what production user-created workflows look like.
+    //   2. Bare "baseId" — used by tests, AI-generated configs that haven't
+    //      been re-saved through the UI, and predefined-template imports
+    //      where the user has just typed an ID. Falls back to user_id lookup.
     const baseIdValue = config?.baseId
     if (!baseIdValue) {
       throw new Error('Base ID is required for Airtable trigger')
@@ -49,7 +55,7 @@ export class AirtableTriggerLifecycle implements TriggerLifecycle {
     let integration: any
 
     if (baseIdValue.includes(':')) {
-      // New compound format: "integrationId:baseId"
+      // Compound shape from the UI dropdown.
       [integrationId, baseId] = baseIdValue.split(':')
 
       // Look up by integration ID
@@ -66,7 +72,7 @@ export class AirtableTriggerLifecycle implements TriggerLifecycle {
         throw new Error(`Airtable integration not found (ID: ${integrationId})`)
       }
     } else {
-      // Legacy format: just baseId - use user_id lookup
+      // Bare-baseId shape — fall back to user_id lookup.
       baseId = baseIdValue
 
       const { data: foundIntegration } = await getSupabase()

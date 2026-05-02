@@ -221,7 +221,9 @@ export const shouldHideField = (
     }
   }
 
-  // Check dependency conditions (legacy showIf with dependsOn)
+  // Pre-migration shape: dependsOn + showIf. Tracked alongside the
+  // canonicalization in learning/docs/visibility-migration-progress.md
+  // (~130 callers across 25+ schema files).
   if (field.dependsOn && field.showIf) {
     const dependentValue = config[field.dependsOn];
     

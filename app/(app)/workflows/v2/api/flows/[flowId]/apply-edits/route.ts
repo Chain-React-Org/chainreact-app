@@ -323,9 +323,10 @@ export async function POST(request: Request, context: { params: Promise<{ flowId
           if (configuredTriggerNodes.length === 0) {
             logger.info(`[apply-edits] All triggers unconfigured after type change - skipping reactivation, will activate when configured`)
           } else {
-            // Reactivate with new trigger configuration
-            // Convert flow nodes to legacy format expected by activateWorkflowTriggers
-            const legacyNodes = configuredTriggerNodes.map((n: any) => ({
+            // Reactivate with new trigger configuration. activateWorkflowTriggers
+            // expects ReactFlow node shape ({ id, data: { type, isTrigger, ... } }),
+            // so reshape from the Flow v2 shape ({ id, type, config, metadata }).
+            const reactFlowNodes = configuredTriggerNodes.map((n: any) => ({
               id: n.id,
               data: {
                 type: n.type,
@@ -338,7 +339,7 @@ export async function POST(request: Request, context: { params: Promise<{ flowId
             const activationResult = await triggerLifecycleManager.activateWorkflowTriggers(
               flowId,
               user.id,
-              legacyNodes
+              reactFlowNodes
             )
 
             if (activationResult.errors.length > 0) {

@@ -9,13 +9,15 @@ export function getSupabase() {
   return createClient()
 }
 
-// Backward-compatible export using a Proxy to lazily initialize
-// This prevents module-level client creation while maintaining import { supabase } usage
+// Lazy-init Proxy so importers can write `import { supabase } from ...`
+// and call `supabase.from(...)` directly without manually invoking
+// createClient(). The Proxy defers client construction until first
+// property access — this keeps the module safe to import at build time
+// when the Supabase env vars may not be present (mirrors lib/db.ts).
 export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
   get(_, prop) {
     return (createClient() as any)[prop]
   }
 })
 
-// Re-export for compatibility
 export default createClient

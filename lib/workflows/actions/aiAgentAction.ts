@@ -1392,7 +1392,9 @@ function parseAutonomousResponse(
       break
 
     case 'extract':
-      // For extract: parse JSON and set data field (primary) + extracted (backwards compat)
+      // For extract: parse JSON, store the full object on data.data, and also
+      // hoist each top-level key from the parsed JSON onto result.data for
+      // direct {{nodeId.fieldName}} access by downstream nodes.
       if (parsedContent && typeof parsedContent === 'object') {
         result.data.data = parsedContent  // Primary field
         // Also set individual fields at top level for easy access

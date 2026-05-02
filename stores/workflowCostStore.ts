@@ -20,14 +20,6 @@ interface WorkflowCostState {
 }
 
 interface WorkflowCostActions {
-  /** Backward-compatible setter (flat cost only) */
-  setWorkflowCost: (
-    id: string,
-    tasks: number,
-    byProvider?: Map<string, { tasks: number; count: number }>
-  ) => void
-
-  /** Full setter with loop-aware fields */
   setWorkflowCostDetailed: (
     id: string,
     data: {
@@ -55,23 +47,6 @@ const initialState: WorkflowCostState = {
 
 export const useWorkflowCostStore = create<WorkflowCostState & WorkflowCostActions>((set) => ({
   ...initialState,
-
-  setWorkflowCost: (id, tasks, byProvider) => {
-    // Convert Map to plain object for backward compat callers
-    const providerObj: Record<string, { tasks: number; count: number }> = {}
-    if (byProvider) {
-      byProvider.forEach((v, k) => { providerObj[k] = v })
-    }
-    set({
-      workflowId: id,
-      estimatedTasks: tasks,
-      worstCaseTasks: tasks, // no loop info — worst case = flat
-      hasLoops: false,
-      loopDetails: [],
-      byNode: {},
-      byProvider: providerObj,
-    })
-  },
 
   setWorkflowCostDetailed: (id, data) => {
     set({

@@ -290,7 +290,7 @@ class DiscordInviteTracker {
             label: node.label,
             config: node.config || {},
             isTrigger: node.is_trigger,
-            ...(node.config || {}) // Spread config fields into data for legacy compatibility
+            ...(node.config || {}) // Hoist config fields to top-level data so handlers that read node.data.X directly still work alongside ones that read node.data.config.X
           }
         })
       }

@@ -715,10 +715,6 @@ export class GoogleApisTriggerLifecycle implements TriggerLifecycle {
       'google-drive:new_file_in_folder': { api: 'drive', resourceId: config.folderId || 'root', events: ['created'] },
       'google-drive:new_folder_in_folder': { api: 'drive', resourceId: config.folderId || 'root', events: ['created'] },
       'google-drive:file_updated': { api: 'drive', resourceId: config.fileId || 'root', events: ['updated'] },
-      // Legacy names for backward compatibility
-      'google_drive_trigger_file_created': { api: 'drive', resourceId: config.fileId || 'root', events: ['created'] },
-      'google_drive_trigger_file_modified': { api: 'drive', resourceId: config.fileId || 'root', events: ['updated'] },
-      'google_drive_trigger_file_shared': { api: 'drive', resourceId: config.fileId || 'root', events: ['shared'] },
 
       // Docs - actual trigger type names from google-docs provider
       'google_docs_trigger_new_document': { api: 'drive', resourceId: config.folderId || 'root', events: ['created'] },

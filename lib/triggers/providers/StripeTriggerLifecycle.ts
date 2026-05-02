@@ -53,41 +53,23 @@ export class StripeTriggerLifecycle implements TriggerLifecycle {
 
     let integration: { id: string } | null = null
 
-    if (integrationId) {
-      // Look up by specific integration ID (multi-account support)
-      const { data, error } = await getSupabase()
-        .from('integrations')
-        .select('id')
-        .eq('id', integrationId)
-        .eq('provider', 'stripe')
-        .eq('user_id', userId)
-        .eq('status', 'connected')
-        .single()
-
-      if (error || !data) {
-        throw new Error('Selected Stripe account not found. Please reconnect the integration.')
-      }
-      integration = data
-    } else {
-      // Legacy fallback: look up by user_id (for existing workflows without stripe_account)
-      const { data, error } = await getSupabase()
-        .from('integrations')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('provider', 'stripe')
-        .eq('status', 'connected')
-        .limit(1)
-
-      if (error || !data || data.length === 0) {
-        throw new Error('No Stripe integration found for user. Please configure the trigger with a Stripe account.')
-      }
-      integration = data[0]
-      logger.warn('[Stripe] Using legacy user_id lookup - workflow should be updated to use stripe_account field')
+    if (!integrationId) {
+      throw new Error('Stripe trigger config is missing stripe_account — select a Stripe account in the trigger configuration.')
     }
 
-    if (!integration) {
-      throw new Error('Stripe integration not found')
+    const { data, error } = await getSupabase()
+      .from('integrations')
+      .select('id')
+      .eq('id', integrationId)
+      .eq('provider', 'stripe')
+      .eq('user_id', userId)
+      .eq('status', 'connected')
+      .single()
+
+    if (error || !data) {
+      throw new Error('Selected Stripe account not found. Please reconnect the integration.')
     }
+    integration = data
 
     // Stripe Connect webhooks must be created on the platform account.
     const stripe = this.getPlatformStripeClient()

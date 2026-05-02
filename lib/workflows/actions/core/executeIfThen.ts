@@ -22,7 +22,6 @@ export async function executeIfThenCondition(
       value,
       advancedExpression,
       continueOnFalse = false,
-      conditionGroups = [],
       logicOperator = "and",
       additionalConditions = []
     } = config
@@ -102,44 +101,6 @@ export async function executeIfThenCondition(
         resolvedField,
         resolvedValue
       })
-    }
-    // Legacy support for conditionGroups
-    else if (conditionGroups.length > 0) {
-      logger.info("Using legacy conditionGroups format")
-
-      // Evaluate each condition group
-      const groupResults = conditionGroups.map((group: any) => {
-        const conditions = group.conditions || []
-
-        if (conditions.length === 0) return true
-
-        // For each condition in the group, all must be true (AND)
-        return conditions.every((condition: any) => {
-          const { field, operator, value } = condition
-
-          // Resolve field and value from input data if they use template syntax
-          const resolvedField = resolveValue(field, input)
-          const resolvedValue = resolveValue(value, input)
-
-          // Evaluate the condition
-          const result = evaluateCondition(resolvedField, operator, resolvedValue)
-
-          logger.info(`Condition evaluated: ${field} ${operator} ${value} => ${result}`, {
-            resolvedField,
-            resolvedValue
-          })
-
-          return result
-        })
-      })
-
-      // Determine final result based on condition type
-      const conditionType = config.conditionType || "all"
-      finalResult = conditionType === "all"
-        ? groupResults.every((result: boolean) => result) // All groups must be true (AND)
-        : groupResults.some((result: boolean) => result) // Any group can be true (OR)
-
-      evaluatedExpression = "legacy condition groups"
     }
     // No conditions defined - default to true
     else {

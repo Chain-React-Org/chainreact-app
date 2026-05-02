@@ -108,7 +108,9 @@ export async function uploadDropboxFile(
           fileData = Buffer.from(fileInfo.content, 'base64')
           actualFileName = fileInfo.fileName || fileInfo.name || config.fileName
         }
-        // Legacy format with direct file data
+        // Slack-style attachment shape — FieldRenderer.tsx writes the
+        // base64 payload onto `data` (with `data:mime;base64,` prefix) when
+        // building Slack attachment objects. Allow that shape too.
         else if (fileInfo.data) {
           fileData = Buffer.from(fileInfo.data, 'base64')
           actualFileName = fileInfo.fileName || fileInfo.name || config.fileName

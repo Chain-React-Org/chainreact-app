@@ -370,19 +370,6 @@ export class ExecutionHistoryService {
     }
   }
 
-  /**
-   * Clean up old execution history (keep last 100 per workflow)
-   */
-  async cleanupOldHistory(): Promise<void> {
-    try {
-      const supabase = await this.getSupabase()
-
-      // No-op for now: legacy cleanup function targeted removed tables.
-      logger.info('🧹 Skipped cleanup_old_execution_history (deprecated)')
-    } catch (error) {
-      logger.error('Failed to cleanup old history:', error)
-    }
-  }
 }
 
 // Export singleton instance

@@ -324,8 +324,8 @@ export class GoogleIntegrationService {
       }
     }
 
-    // TODO: Implement actual Google Drive create folder
-    throw new Error("Google Drive create folder is not yet implemented")
+    const { createGoogleDriveFolder } = await import('@/lib/workflows/actions/googleDrive/createFolder')
+    return await createGoogleDriveFolder(config, context.userId, context.data || {})
   }
 
   private async executeDeleteFile(node: any, context: ExecutionContext) {
@@ -346,8 +346,8 @@ export class GoogleIntegrationService {
       }
     }
 
-    // TODO: Implement actual Google Drive delete file
-    throw new Error("Google Drive delete file is not yet implemented")
+    const { deleteGoogleDriveFile } = await import('@/lib/workflows/actions/googleDrive/deleteFile')
+    return await deleteGoogleDriveFile(config, context.userId, context.data || {})
   }
 
   private async executeShareFile(node: any, context: ExecutionContext) {
@@ -372,8 +372,8 @@ export class GoogleIntegrationService {
       }
     }
 
-    // TODO: Implement actual Google Drive share file
-    throw new Error("Google Drive share file is not yet implemented")
+    const { shareGoogleDriveFile } = await import('@/lib/workflows/actions/googleDrive/shareFile')
+    return await shareGoogleDriveFile(config, context.userId, context.data || {})
   }
 
   private async executeGetFile(node: any, context: ExecutionContext) {

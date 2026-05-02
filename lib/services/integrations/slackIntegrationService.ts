@@ -1,13 +1,16 @@
 import { ExecutionContext } from "../workflowExecutionService"
-import { LegacyIntegrationService } from "../legacyIntegrationService"
+import { executeAction } from "@/lib/workflows/executeNode"
 
 import { logger } from '@/lib/utils/logger'
 
 export class SlackIntegrationService {
-  private legacyService: LegacyIntegrationService
-
-  constructor() {
-    this.legacyService = new LegacyIntegrationService()
+  private dispatch(node: any, context: ExecutionContext) {
+    return executeAction({
+      node,
+      input: context.data,
+      userId: context.userId,
+      workflowId: context.workflowId,
+    })
   }
 
   async execute(node: any, context: ExecutionContext): Promise<any> {
@@ -56,8 +59,7 @@ export class SlackIntegrationService {
       }
     }
 
-    // Use legacy service for actual Slack API calls
-    return await this.legacyService.executeFallbackAction(node, context)
+    return await this.dispatch(node, context)
   }
 
   private async executeSendDirectMessage(node: any, context: ExecutionContext) {
@@ -81,8 +83,7 @@ export class SlackIntegrationService {
       }
     }
 
-    // Use legacy service for actual Slack API calls
-    return await this.legacyService.executeFallbackAction(node, context)
+    return await this.dispatch(node, context)
   }
 
   private async executeCreateChannel(node: any, context: ExecutionContext) {
@@ -110,8 +111,7 @@ export class SlackIntegrationService {
       }
     }
 
-    // Use legacy service for actual Slack API calls
-    return await this.legacyService.executeFallbackAction(node, context)
+    return await this.dispatch(node, context)
   }
 
   private async executeInviteUser(node: any, context: ExecutionContext) {
@@ -134,8 +134,7 @@ export class SlackIntegrationService {
       }
     }
 
-    // Use legacy service for actual Slack API calls
-    return await this.legacyService.executeFallbackAction(node, context)
+    return await this.dispatch(node, context)
   }
 
   private async executeSetStatus(node: any, context: ExecutionContext) {
@@ -160,8 +159,7 @@ export class SlackIntegrationService {
       }
     }
 
-    // Use legacy service for actual Slack API calls
-    return await this.legacyService.executeFallbackAction(node, context)
+    return await this.dispatch(node, context)
   }
 
   private resolveValue(value: any, context: ExecutionContext): any {

@@ -1077,7 +1077,8 @@ export const useIntegrationStore = create<IntegrationStore>()(
         matchingIntegrations = integrations.filter((i) => i.provider === alternateProvider)
       }
 
-      // Sort by created_at (oldest first for backward compatibility)
+      // Oldest first so callers that take `result[0]` get the originally-
+      // connected account when multiple integrations exist for the same provider.
       return matchingIntegrations.sort((a, b) =>
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       )

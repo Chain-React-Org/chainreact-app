@@ -1154,23 +1154,9 @@ async function emitWorkflowTrigger(event: any, userId: string, accessToken?: str
 
 
 
-            const nodeType = node?.data?.type
-
-            if (nodeType === 'onedrive_trigger_file_created') {
-
-              const created = payload?.createdDateTime ? new Date(payload.createdDateTime).getTime() : null
-
-              const modified = payload?.lastModifiedDateTime ? new Date(payload.lastModifiedDateTime).getTime() : null
-
-              if (!created || !modified) continue
-
-              const isNew = Math.abs(modified - created) < 5000
-
-              if (!isNew) continue
-
-            }
-
-
+            // No node emits onedrive_trigger_file_created (OneDrive provider
+            // defines onedrive_trigger_new_file / _file_modified only); the
+            // dead match-branch was removed alongside the lifecycle alias.
 
             return true
 

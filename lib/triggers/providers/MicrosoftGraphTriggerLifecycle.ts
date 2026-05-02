@@ -598,7 +598,6 @@ export class MicrosoftGraphTriggerLifecycle implements TriggerLifecycle {
         }
         return '/me/drive/root'
       },
-      'trigger_file_created': '/me/drive/root', // Legacy alias
       'trigger_file_modified': (config?: Record<string, any>) => {
         if (config?.driveId && config?.folderId) {
           return `/drives/${config.driveId}/items/${config.folderId}`

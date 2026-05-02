@@ -169,15 +169,18 @@ export async function findAirtableRecord(
         createdTime: record.createdTime
       }))
 
+      // Even in 'all' mode the schema documents recordId/fields/createdTime
+      // as "(or first record if multiple)" — hoist the first record so
+      // simple downstream consumers can read it without indexing into records[].
       return {
         success: true,
         output: {
           found: true,
           matchCount: records.length,
-          recordId: records[0].id, // First record for backward compatibility
-          fields: records[0].fields, // First record for backward compatibility
+          recordId: records[0].id,
+          fields: records[0].fields,
           createdTime: records[0].createdTime,
-          records: transformedRecords // All matching records
+          records: transformedRecords
         },
         message: `Found ${records.length} matching record${records.length === 1 ? '' : 's'}`
       }

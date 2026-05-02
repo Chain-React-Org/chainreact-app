@@ -264,8 +264,10 @@ export const hubspotDynamicOptionsLoader: ProviderOptionsLoader = {
         }));
       }
 
-      // Handle legacy fields (backward compatibility)
-      logger.info('🔍 [HubSpot Loader] Reached legacy fields section for:', fieldName);
+      // Shared fields also covered by hubspotOptionsLoader. Whichever loader
+      // canHandle()-claims them first wins; this branch is the dynamic
+      // loader's path when the base loader didn't claim the field.
+      logger.info('🔍 [HubSpot Loader] Handling shared field:', fieldName);
 
       const fieldToDataType: Record<string, string> = {
         listId: 'hubspot_lists',
