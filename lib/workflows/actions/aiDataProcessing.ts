@@ -3,7 +3,7 @@
  * Actions that can process and transform data from previous workflow nodes
  */
 
-import { ActionResult } from '@/actions'
+import type { ActionResult } from '@/lib/workflows/actions/core/executeWait'
 import { getOpenAIClient } from '@/lib/ai/openai-client'
 
 /**

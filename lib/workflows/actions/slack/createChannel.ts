@@ -1,7 +1,7 @@
 import { ActionResult } from '../core'
 import { requireExplicitField } from '../core/requireExplicitField'
 import { getIntegrationCredentials } from "@/lib/integrations/getDecryptedAccessToken"
-import { resolveValue } from "@/lib/integrations/resolveValue"
+import { resolveValue } from "../core/resolveValue"
 
 import { logger } from '@/lib/utils/logger'
 

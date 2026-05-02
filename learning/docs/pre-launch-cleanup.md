@@ -18,12 +18,12 @@
 
 | Field | Value |
 |---|---|
-| Status | OPEN |
-| File | [`lib/integrations/resolveValue.ts`](../../lib/integrations/resolveValue.ts) |
-| What | `@deprecated` thin wrapper that delegates to `lib/workflows/actions/core/resolveValue.ts`. Created in PR-C1a. |
-| Why deferred | 15 callers still import from this path. Wrapping kept them compiling without forcing a migration in the same PR. |
-| Pre-launch action | Migrate the 15 callers to import directly from `@/lib/workflows/actions/core/resolveValue`, then delete `lib/integrations/resolveValue.ts`. Lands after PR-C1b. |
-| Tracking | [`learning/docs/resolver-consolidation-design.md`](resolver-consolidation-design.md) §7 |
+| Status | DONE — 2026-05-02 |
+| File | `lib/integrations/resolveValue.ts` (deleted) |
+| What | `@deprecated` thin wrapper that delegated to `lib/workflows/actions/core/resolveValue.ts`. |
+| Resolution | Discovered during the §A1 closure pass that the wrapper's only remaining production callers (after the broader audit) were 3 files: `lib/workflows/actions/hubspot.ts`, `lib/workflows/actions/hubspotDynamic.ts`, `lib/workflows/actions/slack/createChannel.ts`. The 11 other callers listed in the §A1 design lived under the **top-level orphan `/integrations/` directory** (not `/lib/integrations/`) plus its `/actions/index.ts` dispatcher and `/examples/gmail-send-email-example.ts`, which were verified to have ZERO production importers (only example-file consumption + one type-only import in `aiDataProcessing.ts`). Migrated the 3 production callers to import directly from `./core/resolveValue` and DELETED the entire orphan stack: top-level `/integrations/` (7 provider directories), `/actions/`, `/examples/`, `lib/integrations/resolveValue.ts`, and `__tests__/workflows/resolver-parity.test.ts` (its purpose was comparing the wrapper to the canonical — moot once the wrapper is gone). The only redirect needed was `aiDataProcessing.ts` for the `ActionResult` type, now imported from `lib/workflows/actions/core/executeWait.ts`. |
+| Verification | 96 suites / 1723 tests pass (down from 97/1785 — the parity test contributed 62 tests across one suite; that's the only delta). |
+| Tracking | [`learning/docs/resolver-consolidation-design.md`](resolver-consolidation-design.md) §7 — closure noted. |
 
 ### A2. Resolver consolidation — `parseVariableReference` fallback in DataFlowManager
 

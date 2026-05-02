@@ -1,6 +1,6 @@
 import { ActionResult } from './core/executeWait'
 import { getDecryptedAccessToken } from './core/getDecryptedAccessToken'
-import { resolveValue } from '@/lib/integrations/resolveValue'
+import { resolveValue } from './core/resolveValue'
 
 import { logger } from '@/lib/utils/logger'
 
