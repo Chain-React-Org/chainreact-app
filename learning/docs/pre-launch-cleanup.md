@@ -29,11 +29,11 @@
 
 | Field | Value |
 |---|---|
-| Status | OPEN |
-| File | [`lib/workflows/dataFlowContext.ts`](../../lib/workflows/dataFlowContext.ts) (post-process block in `resolveVariable`) |
-| What | The `normalizeVariableReference` / `parseVariableReference` post-process block kept as a "safety net" if canonical doesn't recognize a node ref. |
-| Why deferred | Conservative fallback during PR-C1a so we couldn't accidentally regress a node-reference edge case. Parity tests pass without it. |
-| Pre-launch action | Once parity tests have proven it's redundant against real workflow runs, delete the post-process block. |
+| Status | KEEP — JUSTIFIED — 2026-05-02 |
+| File | [`lib/workflows/dataFlowContext.ts`](../../lib/workflows/dataFlowContext.ts) (post-process block in `resolveVariable` at L214 and the parallel strict-path block at L458) |
+| What | The `normalizeVariableReference` / `parseVariableReference` post-process block. |
+| Why load-bearing | `normalizeVariableReference` (in `lib/workflows/variableReferences.ts`) rewrites two input shapes the canonical resolver doesn't natively recognize: `{{node.<id>.output.<path>}}` → `{{<id>.<path>}}` and `{{<id>.output.<path>}}` → `{{<id>.<path>}}`. The canonical sees `node.X.output.field` as a literal `node` key, finds nothing, and returns undefined. The post-process intercepts that miss, normalizes the reference, and re-resolves via `getNodeOutput`. These prefixed shapes are emitted by some planner/template paths, so the fallback is the actual handler for them. |
+| Pre-launch action | Extend the canonical resolver in `lib/workflows/actions/core/resolveValue.ts` to recognize `node.<id>.output.<path>` and `<id>.output.<path>` prefixes natively (or run them through `normalizeVariableReference` upstream of canonical recognition). Once the canonical handles those shapes, both post-process blocks can be deleted. |
 
 ### A3. AI hardcoded defaults
 
@@ -51,11 +51,11 @@
 
 | Field | Value |
 |---|---|
-| Status | OPEN — input to PR-G |
+| Status | DONE — 2026-05-02 |
 | Files | Various — see [`learning/docs/handler-defaults-audit.md`](handler-defaults-audit.md) |
 | What | 38 handler defaults marked `Require` (must be removed; field becomes required). 21 marked `Change` (e.g., timezone resolution, AI prompt removal, end-time-as-start+1h). |
-| Why deferred | Audit captured decisions; PR-G applies them after the contract refactors (C1–C5/D/E/F) land. |
-| Pre-launch action | Ship PR-G to apply all `Require` and `Change` decisions before launch. |
+| Resolution | PR-G shipped in commit `3075fb409` — "PR-G + §A5: handler defaults migration + auxiliary 401 wrapping". 21 backfill registry entries, 12 schemas marked required, +199 tests. Q11 (no hidden high-risk defaults) and Q12 (workspace → user → UTC/en_US tz/locale resolution) contracts pinned. The audit doc remains the authoritative row-by-row record. |
+| Tier-1 follow-up (user-only — not closeable by the agent) | Run `tsx scripts/migrate-handler-defaults.ts --pr=PR-G2,PR-G3,PR-G4,PR-G5` against the production DB before merging PR-G to a populated DB; plus `supabase db push` for `20260501000000_add_timezone_locale_to_workspaces_and_user_profiles.sql`. |
 
 ### A6. Q8c per-handler cost-check — RESOLVED (option (a) locked, no per-handler shim)
 
