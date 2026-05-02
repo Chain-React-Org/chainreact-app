@@ -64,9 +64,11 @@ services:
       - "12111:12111" # HTTP
       - "12112:12112" # HTTPS (self-signed)
     healthcheck:
-      # stripe-mock returns 401 on unauthenticated GETs to the root,
-      # which is good enough for a liveness check (the port answers).
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:12111/v1/charges || test $$? -eq 6 -o $$? -eq 8"]
+      # stripe-mock requires a Bearer token; without it every request
+      # returns 401, which `wget --spider` treats as a failure.
+      # Send any non-empty bearer (stripe-mock accepts any value) so
+      # the probe gets a 200 and exits cleanly.
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider --header='Authorization: Bearer sk_test_health' http://localhost:12111/v1/charges"]
       interval: 2s
       timeout: 3s
       retries: 30

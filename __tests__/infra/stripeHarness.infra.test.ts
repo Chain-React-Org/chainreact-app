@@ -38,24 +38,19 @@ describe('stripeHarness — smoke', () => {
     expect(Array.isArray(res.data)).toBe(true)
   })
 
-  test('withRequestCapture records outbound fetch calls and is reversible', async () => {
+  test('withRequestCapture records outbound fetch calls', async () => {
     if (!stripeAvailable) {
       console.warn(`[stripeHarness.infra] ${REQUIRES_DOCKER_NOTE}`)
       return
     }
-    const stripe = makeStripeClient()
-    const { captured, restore } = withRequestCapture(stripe)
-    try {
-      await stripe.charges.list({ limit: 1 })
-      expect(captured.length).toBeGreaterThanOrEqual(1)
-      const last = captured[captured.length - 1]
-      expect(last.method).toBe('GET')
-      expect(last.path).toContain('/v1/charges')
-      // The SDK forwards the API key via Authorization: Bearer.
-      expect(last.headers['authorization']).toMatch(/^Bearer /)
-    } finally {
-      restore()
-    }
+    const { stripe, captured } = withRequestCapture()
+    await stripe.charges.list({ limit: 1 })
+    expect(captured.length).toBeGreaterThanOrEqual(1)
+    const last = captured[captured.length - 1]
+    expect(last.method).toBe('GET')
+    expect(last.path).toContain('/v1/charges')
+    // The SDK forwards the API key via Authorization: Bearer.
+    expect(last.headers['authorization']).toMatch(/^Bearer /)
   })
 
   test('isStripeMockAvailable returns true when the service is reachable', async () => {

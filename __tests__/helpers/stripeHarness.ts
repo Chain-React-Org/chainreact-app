@@ -48,20 +48,30 @@ function getStripeCtor(): any {
  * Build a Stripe SDK client pointed at stripe-mock. Use the returned
  * client exactly as you would the real SDK — it sends real HTTP, but
  * to the local container.
+ *
+ * Optionally pass a custom `fetchFn` so `withRequestCapture` can hand
+ * the SDK an intercepting fetch at construction time. Without that,
+ * the SDK captures its own `fetch` reference and global-fetch
+ * monkey-patches don't work.
  */
 export function makeStripeClient(
   config: Partial<StripeMockConfig> = {},
+  fetchFn?: typeof fetch,
 ): any {
   const merged = { ...DEFAULT_STRIPE_MOCK_CONFIG, ...config }
   const Stripe = getStripeCtor()
+  const StripeCtor = Stripe.default ?? Stripe
   // The Stripe SDK takes `host` / `port` / `protocol` separately
   // rather than a base URL string. stripe-mock listens on plain HTTP.
   const url = new URL(merged.baseUrl)
-  return new Stripe(merged.apiKey, {
+  return new StripeCtor(merged.apiKey, {
     apiVersion: '2024-10-28.acacia' as any,
     host: url.hostname,
     port: Number(url.port || 80),
     protocol: url.protocol.replace(':', '') as 'http' | 'https',
+    // Use fetch-based HTTP client (rather than the default Node http
+    // module) so callers can swap in an intercepting fetch.
+    httpClient: StripeCtor.createFetchHttpClient(fetchFn),
     // Disable SDK retries so test assertions on call counts are deterministic.
     maxNetworkRetries: 0,
     timeout: 5_000,
@@ -80,46 +90,58 @@ export interface CapturedStripeRequest {
 }
 
 /**
- * Wrap a Stripe SDK client so every outbound request is logged in
- * the returned `captured` array. Useful for asserting that the
- * Idempotency-Key header was set correctly, that the request body
- * carries the right `flattenForStripe` output, etc.
+ * Build a Stripe client whose outbound HTTP is captured for
+ * assertions. Useful for verifying that the Idempotency-Key header
+ * was set correctly, that the request body carries the right
+ * `flattenForStripe` output, etc.
  *
- * Implementation note: we monkey-patch `stripe._requestSender` indirectly
- * by intercepting at the `fetch` level. The Stripe SDK uses the global
- * `fetch` when configured with `httpClient: 'fetch'`; otherwise it uses
- * Node's `http` module. We default to fetch-based capture since infra
- * tests run under jest with native `fetch` available.
+ * Returns a fresh client + captured array. The captured array is
+ * mutated as requests fire — read it after each `await stripe.x.y()`.
+ *
+ * Implementation: hands a custom fetch to the Stripe SDK at
+ * construction time (via `Stripe.createFetchHttpClient(fetchFn)`),
+ * because the SDK captures its fetch reference internally — patching
+ * global fetch AFTER construction has no effect.
  */
-export function withRequestCapture(stripe: any): {
+export function withRequestCapture(
+  config: Partial<StripeMockConfig> = {},
+): {
   stripe: any
   captured: CapturedStripeRequest[]
-  restore: () => void
 } {
   const captured: CapturedStripeRequest[] = []
-  const originalFetch = globalThis.fetch
   const interceptingFetch: typeof fetch = async (input: any, init?: any) => {
-    const url = typeof input === 'string' ? input : input?.url
+    const url = typeof input === 'string' ? input : input?.url ?? String(input)
+    const headers: Record<string, string> = {}
+    const rawHeaders = init?.headers
+    // Stripe's fetch http client passes headers as Array<[key, value]>.
+    // Other callers may pass `Headers` instances or plain objects. Handle
+    // all three shapes.
+    if (rawHeaders instanceof Headers) {
+      rawHeaders.forEach((v: string, k: string) => {
+        headers[k.toLowerCase()] = v
+      })
+    } else if (Array.isArray(rawHeaders)) {
+      for (const entry of rawHeaders) {
+        if (Array.isArray(entry) && entry.length >= 2) {
+          headers[String(entry[0]).toLowerCase()] = String(entry[1])
+        }
+      }
+    } else if (rawHeaders && typeof rawHeaders === 'object') {
+      for (const [k, v] of Object.entries(rawHeaders as Record<string, string>)) {
+        headers[k.toLowerCase()] = String(v)
+      }
+    }
     captured.push({
       method: (init?.method || 'GET').toUpperCase(),
       path: typeof url === 'string' ? url : String(url),
-      headers: Object.fromEntries(
-        Object.entries((init?.headers || {}) as Record<string, string>).map(
-          ([k, v]) => [k.toLowerCase(), String(v)],
-        ),
-      ),
+      headers,
       body: typeof init?.body === 'string' ? init.body : '',
     })
-    return originalFetch(input, init)
+    return globalThis.fetch(input, init)
   }
-  globalThis.fetch = interceptingFetch as any
-  return {
-    stripe,
-    captured,
-    restore: () => {
-      globalThis.fetch = originalFetch
-    },
-  }
+  const stripe = makeStripeClient(config, interceptingFetch as any)
+  return { stripe, captured }
 }
 
 /**

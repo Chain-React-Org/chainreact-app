@@ -243,7 +243,7 @@ describe('healthTransitionEngine — state machine end-to-end', () => {
         message: 'Token revoked. Please reconnect.',
       } as any
 
-      const signal = buildFailureSignal('token_refresh', tokenRevokedError)
+      const signal = buildFailureSignal(tokenRevokedError, 'token_refresh')
       const result = await computeTransitionAndNotify(supabase, integration, signal)
 
       expect(result.stateChanged).toBe(true)
@@ -331,7 +331,7 @@ describe('healthTransitionEngine — state machine end-to-end', () => {
         userActionType: 'reconnect',
         message: 'Token revoked.',
       } as any
-      const signal = buildFailureSignal('token_refresh', tokenRevokedError)
+      const signal = buildFailureSignal(tokenRevokedError, 'token_refresh')
 
       // First call: state already action_required, target also action_required
       // → no-op (no duplicate notification). Engine returns stateChanged=false.
@@ -365,7 +365,7 @@ describe('healthTransitionEngine — state machine end-to-end', () => {
       const result = await computeTransitionAndNotify(
         supabase,
         integration,
-        buildFailureSignal('proactive_health_check', transientError),
+        buildFailureSignal(transientError, 'proactive_health_check'),
       )
 
       expect(result.newState).toBe('warning')
